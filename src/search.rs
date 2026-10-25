@@ -1,9 +1,8 @@
 use std::{
-    cmp::Reverse, ops::BitAnd, time::Instant,
+    cmp::Reverse, time::Instant,
 };
 
-use cozy_chess::{Board, GameStatus, Move, bitboard};
-use argminmax::ArgMinMax;
+use cozy_chess::{Board, GameStatus, Move};
 use crate::eval::evaluate;
 
 #[derive(Clone)]
@@ -70,7 +69,7 @@ impl Engine {
 
             (moves, nodes) = engine.search_fixed_depth(board.clone(), d, moves);
             if verbose {
-                let rate = (nodes as f32 / start.elapsed().as_secs_f32());
+                let rate = nodes as f32 / start.elapsed().as_secs_f32();
                 println!("depth {}: evaluated {} nodes in {:.2} seconds ({:.2}nps)", d, nodes, start.elapsed().as_secs_f32(), rate)
             }
         }
@@ -139,7 +138,7 @@ impl Engine {
         if depth == 0 {
             *nodes += 1;
 
-            let eval = -self.quiescence_search(board, depth, -beta, -alpha, &mut nodes);
+            let eval = -self.quiescence_search(board, depth, -beta, -alpha, nodes);
             return eval;
         }
         
@@ -151,7 +150,7 @@ impl Engine {
             for mv in moves {
                 let mut new_board= board.clone();
                 new_board.play_unchecked(mv);
-                let score = -self.negamax(new_board, depth-1, -beta, -alpha, &mut nodes);
+                let score = -self.negamax(new_board, depth-1, -beta, -alpha, nodes);
 
                 if score > max_score {
                     max_score = score;
@@ -201,7 +200,7 @@ impl Engine {
                 if !mv.promotion.is_none() || !(mv.to.bitboard() & enemy_pieces).is_empty() {
                     let mut new_board = board.clone();
                     new_board.play_unchecked(mv);
-                    let score = -self.quiescence_search(new_board, depth, -beta, -alpha, &mut nodes);
+                    let score = -self.quiescence_search(new_board, depth, -beta, -alpha, nodes);
 
                     if score >= beta {
                         return true;
