@@ -1,0 +1,9 @@
+[package]
+name = "milo"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+cozy-chess = "=0.3.4"
+uci-parser = "=0.2.0"
+argminmax = "0.7.1"
