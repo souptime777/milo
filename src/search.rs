@@ -2,7 +2,8 @@ use std::{
     cmp::Reverse, time::Instant,
 };
 
-use cozy_chess::{Board, GameStatus, Move};
+use cozy_chess::{Board, GameStatus, Move, util::display_uci_move};
+use uci_parser::{UciInfo, UciResponse};
 use crate::eval::evaluate;
 
 #[derive(Clone)]
@@ -14,6 +15,7 @@ struct TTEntry {
 
 struct TranspositionTable {
     table: Vec<Option<TTEntry>>,
+    allocated: usize,
     size: usize,
 }
 
@@ -22,6 +24,7 @@ impl TranspositionTable {
     fn new(size: usize) -> Self {
         Self {
             table: vec![None; size],
+            allocated: 0,
             size,
         }
     }
@@ -36,6 +39,9 @@ impl TranspositionTable {
 
     fn set(&mut self, entry: TTEntry) {
         let idx = self.get_idx(entry.key);
+        if self.table[idx].is_none() {
+            self.allocated += 1;
+        }
         self.table[idx] = Some(entry);
     }
 }
@@ -67,9 +73,22 @@ impl Engine {
             let nodes: u64;
 
             (moves, nodes) = engine.search_fixed_depth(board.clone(), d, moves);
+
+            // Print info to terminal
             if verbose {
-                let rate = nodes as f32 / start.elapsed().as_secs_f32();
-                println!("depth {}: evaluated {} nodes in {:.2} seconds ({:.2}nps)", d, nodes, start.elapsed().as_secs_f32(), rate)
+                let nps = (nodes as f32 / start.elapsed().as_secs_f32()) as u32;
+
+                let info = UciInfo::new()
+                .depth(d)
+                .nodes(nodes)
+                .nps(nps)
+                .currmove(display_uci_move(&board, moves[0]))
+                .time(start.elapsed().as_millis())
+                .hashfull((engine.t_table.allocated * 1000) / (engine.t_table.size));
+                
+                
+
+                println!("{}", UciResponse::info(info));
             }
         }
 
@@ -78,11 +97,10 @@ impl Engine {
 
     pub fn search_fixed_depth(&mut self, board: Board, depth: u8, moves: Vec<Move>) -> (Vec<Move>, u64) {
 
-        const LMR: u8 = 1; // const reduction for late moves
-        const LMR_DEPTH_FACTOR: u8 = 5; // additional reduction scales with depth
-        const LMR_SAFE_MOVES: usize = 6; // amount of moves to not reduce
-        const LMR_MIN_DEPTH: u8 = 3; // minimum depth
-        assert!(LMR < LMR_MIN_DEPTH);
+        #[inline(always)]
+        fn lmr(depth: u8, move_idx: usize) -> u8 {
+            std::cmp::min(((depth as f32).ln() * (move_idx as f32).ln() / 2.0) as u8, depth-1) // ensure at least depth > 0
+        }
 
         let mut alpha = -i32::MAX;
         let beta = i32::MAX;
@@ -92,23 +110,17 @@ impl Engine {
         // Loop over all moves
         for (i, mv) in moves.iter().enumerate() {
 
-            let mut reduced_depth: u8 = depth;
+            let reduction = lmr(depth, i);
 
-            let reduction = LMR + (depth * i as u8 / LMR_DEPTH_FACTOR);
+            let final_depth: u8 = depth - reduction;
 
-            if !(0..LMR_SAFE_MOVES).contains(&i) {
-                if depth > LMR_MIN_DEPTH + reduction {
-                    reduced_depth -= reduction
-                } else {
-                    reduced_depth = LMR_MIN_DEPTH
-                }
-            }
+        
             // Create a new board and run negamax
             let mut new_board = board.clone();
             new_board.play_unchecked(*mv);
 
             // Update values
-            let score = -self.negamax(new_board, reduced_depth-1, -beta, -alpha, &mut nodes_evaluated);
+            let score = -self.negamax(new_board, final_depth-1, -beta, -alpha, &mut nodes_evaluated);
 
             if score > max_score {
                 max_score = score;
@@ -127,24 +139,19 @@ impl Engine {
         (indices.iter().map(|&i| moves[i]).collect(), nodes_evaluated)
     }
 
-
     // Take a board and depth, returning eval
     pub fn negamax(&mut self, board: Board, depth: u8, mut alpha: i32, beta: i32, nodes: &mut u64) -> i32 {
 
         // Return transposition table value if available and good
         let key = board.hash();
-        let mut entry_needs_update = false;
 
         if let Some(entry) = self.t_table.entry_at_key(key) {
             if entry.key == key && entry.depth >= depth {
                 *nodes += 1;
+
                 return entry.score;
                 
-            } else {
-                entry_needs_update = true;
             }
-        } else {
-            entry_needs_update = true;
         }
 
         // Eval has cases for not ongoing state
@@ -158,7 +165,6 @@ impl Engine {
             return self.quiescence_search(board, depth, -beta, -alpha, nodes);
         }
         
-
 
         let mut max_score: i32 = -i32::MAX;
 
@@ -182,14 +188,13 @@ impl Engine {
             false
         });
 
-        if entry_needs_update {
-            self.t_table.set(TTEntry {
-                key,
-                depth,
-                score: max_score,
-            });
-        }
 
+        self.t_table.set(TTEntry {
+            key,
+            depth,
+            score: max_score,
+        });
+        
         max_score
     }
 
@@ -213,7 +218,7 @@ impl Engine {
         board.generate_moves(|moves| {
 
             for mv in moves {
-                // Extend search on captures and promotions
+                // Extend search on captures, promotions and checks
                 if (!mv.promotion.is_none() || !(mv.to.bitboard() & enemy_pieces).is_empty()) || in_check {
                     let mut new_board = board.clone();
                     new_board.play_unchecked(mv);
