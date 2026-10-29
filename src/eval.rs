@@ -192,15 +192,7 @@ pub fn evaluate(board: &Board, depth: u8) -> i32 {
         for square in Square::ALL.iter() {
             let square_index = *square as usize;
             if let Some(color) = board.color_on(*square) {
-                let piece:usize = match board.piece_on(*square) {
-                    Some(Piece::Pawn) => 0,
-                    Some(Piece::Knight) => 1,
-                    Some(Piece::Bishop) => 2,
-                    Some(Piece::Rook) => 3,
-                    Some(Piece::Queen) => 4,
-                    Some(Piece::King) => 5,
-                    None => unreachable!(),
-                };
+                let piece= board.piece_on(*square).unwrap() as usize;
                 match color {
                     Color::White => {
                         mg_score += PST[0][piece][square_index] + PEICE_VALUES[0][piece];
@@ -218,10 +210,7 @@ pub fn evaluate(board: &Board, depth: u8) -> i32 {
     }
 
     let white_perspective_value = match board.status() {
-        GameStatus::Won => match board.side_to_move() {
-            Color::White => -MATE_SCORE - (depth as i32),
-            Color::Black => MATE_SCORE + (depth as i32),
-        }
+        GameStatus::Won => return -MATE_SCORE + depth as i32,
         GameStatus::Drawn => 0,
         GameStatus::Ongoing => pst_value(board),
     };
