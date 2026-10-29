@@ -1,12 +1,13 @@
-use std::thread;
+use std::{sync::{Arc, atomic::AtomicBool}, thread};
 
 use cozy_chess::{Board, Color, Move, util::parse_uci_move};
-use uci_parser::{UciCommand, UciResponse, UciSearchOptions};
+use uci_parser::{UciCommand, UciSearchOptions};
 use std::time::{Instant, Duration};
 
 use crate::search::Engine;
 
 pub struct ActiveSearch {
+    pub stop_flag: Arc<AtomicBool>,
     pub handle: thread::JoinHandle<Move>,
     pub start: Instant,
     pub duration: Duration,
@@ -95,12 +96,15 @@ pub fn handle_uci_cmd(cmd: UciCommand, board: &mut Board, search_active: bool) -
 
             let movetime = calculate_movetime(search_options, board.side_to_move());
             let b = board.clone();
+            let stop_flag = Arc::new(AtomicBool::new(false));
 
+            let worker_flag = Arc::clone(&stop_flag);
             let search_thread_handle = thread::spawn(move || {
-                Engine::iterative_search(b, depth, 8192, true)
+                Engine::iterative_search(b, depth, 2usize.pow(21), true, worker_flag)
             });
 
             return Some(ActiveSearch {
+                stop_flag,
                 handle: search_thread_handle,
                 start: Instant::now(),
                 duration: movetime,

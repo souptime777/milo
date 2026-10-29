@@ -2,18 +2,37 @@ mod eval;
 mod search;
 mod uci;
 
-use uci::handle_uci_cmd;
-use uci_parser::{UciCommand, UciSearchOptions};
-use std::thread::available_parallelism;
+use std::thread::sleep;
+use std::io;
 
-use cozy_chess::{Board, GameStatus};
-use search::*;
+use uci::handle_uci_cmd;
+use uci_parser::UciCommand;
+
+
+use cozy_chess::{Board, util::display_uci_move};
+
 
 
 fn main() {
-    let mut board = Board::from_fen("rn2kbR1/ppp1p3/8/3P4/5q2/2N4b/PPP4P/R2QK3 w Q - 0 2", false).unwrap();
-    let cmd = "go depth 7".parse::<UciCommand>().unwrap();
-    let search = handle_uci_cmd(cmd, &mut board, false);
-    println!("bestmove {}", search.unwrap().handle.join().unwrap());
-    Engine::iterative_search(board, 7, 4096, true);
+    let mut board = Board::default();
+    loop {
+        let mut input = String::new();
+
+        // 2. Read the line from stdin
+        io::stdin()
+            .read_line(&mut input)
+            .expect("Failed to read line"); // Handles potential I/O errors
+
+        
+        let cmd = input.parse::<UciCommand>().unwrap();
+        let result = handle_uci_cmd(cmd, &mut board, false);
+        
+        if let Some(search) = result {
+            sleep(search.duration);
+            search.stop_flag.store(true, std::sync::atomic::Ordering::Relaxed);
+            println!("bestmove {}", display_uci_move(&board, search.handle.join().unwrap()));
+        }
+
+        
+    }
 }

@@ -4,6 +4,6 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-cozy-chess = "=0.3.4"
+cozy-chess = { version = "0.3.4", features = ["pext"] }
 uci-parser = "=0.2.0"
-argminmax = "0.7.1"
+argminmax = "0.7.1" 
