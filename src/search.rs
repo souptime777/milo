@@ -3,16 +3,18 @@ use std::{
 };
 use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
 
-use cozy_chess::{Piece, Rank};
+use cozy_chess::{BoardBuilder, Color, Piece, Rank};
 use cozy_chess::{Board, GameStatus, Move, util::display_uci_move};
 use uci_parser::{UciInfo, UciResponse, UciScore};
-use crate::eval::{PEICE_VALUES, evaluate};
+use crate::eval::{PEICE_VALUES, evaluate, phase};
 
 const MAX_QUIESCENCE_PLY: usize = 32;
+const NMP_REDUCTION: u8 = 2;
 
 #[derive(Clone)]
 struct TTEntry {
     key: u64,
+
     score: i32,
     bestmove: Option<Move>,
     depth: u8,
@@ -65,6 +67,7 @@ pub struct SearchInfo {
     seldepth: usize,
     nodes: u64,
     score: i32,
+    researches: u32,
 }
 
 impl SearchInfo {
@@ -74,6 +77,7 @@ impl SearchInfo {
             seldepth: 0,
             nodes: 0,
             score: 0,
+            researches: 0,
         }
     }
 
@@ -125,7 +129,7 @@ impl Engine {
             if verbose {
                 let nps = (info.nodes as f32 / start.elapsed().as_secs_f32()) as u32;
 
-                let info = UciInfo::new()
+                let uci_info = UciInfo::new()
                 .depth(d)
                 .seldepth(info.seldepth)
                 .nodes(info.nodes)
@@ -136,8 +140,7 @@ impl Engine {
                 .hashfull((engine.t_table.allocated * 1000) / (engine.t_table.size));
                 
                 
-
-                println!("{}", UciResponse::info(info));
+                println!("{}", UciResponse::info(uci_info));
             }
         }
 
@@ -152,9 +155,9 @@ impl Engine {
                 return 0;
             }
 
-            let reduction = (0.5 * (depth as f32).ln() * (move_idx as f32).ln()) as u8;
+            let reduction = (0.20 * (depth as f32).ln() * (move_idx as f32).ln()) as u8;
 
-            reduction.min(depth - 2)
+            reduction.min(depth - 4)
         }
 
         #[inline]
@@ -178,7 +181,7 @@ impl Engine {
             }
 
             /* Move gives check
-            creating new board only acceptable because this is only done at root.
+            Creating new board only acceptable because this is only done at root.
             */ 
             let mut test_board = board.clone();
             test_board.play_unchecked(*mv);
@@ -193,47 +196,43 @@ impl Engine {
         let mut info = SearchInfo::new();
         info.depth = depth;
 
-        let mut alpha = -i32::MAX;
+        let alpha = -i32::MAX;
         let beta = i32::MAX;
+        
         let mut values: Vec<i32> = Vec::with_capacity(moves.len());
         let mut max_score = -i32::MAX;
-        // Loop over all moves
-        for (i, mv) in moves.iter().enumerate() {
 
-            let reduction = if can_apply_lmr(&board, mv) {lmr(depth, i)} else { 0 };
+        // Loop over all moves
+        for (move_idx, mv) in moves.iter().enumerate() {
+
+            let reduction = if can_apply_lmr(&board, mv) {lmr(depth, move_idx)} else { 0 };
         
             // Create a new board and run negamax
             let mut new_board = board.clone();
             new_board.play_unchecked(*mv);
 
             // negamax search
-            let result = self.negamax(new_board, depth - 1 - reduction, 0, -beta, -alpha, &mut info, Arc::clone(&stop_flag));
+            let result = self.negamax(new_board, depth - 1 - reduction, 0, -beta, -alpha, &mut info, true, Arc::clone(&stop_flag));
 
-            if result.is_none() {
-                return None;
-            }
+            result?;
 
             let mut score = -result.unwrap();
 
             // Research if reduced move triggered cutoff
             if reduction != 0  && score > alpha {
+                info.researches += 1;
+
                 let mut new_board = board.clone();
                 new_board.play_unchecked(*mv);
-                let result = self.negamax(new_board, depth - 1, 0, -beta, -alpha, &mut info, Arc::clone(&stop_flag));
+                let result = self.negamax(new_board, depth - 1, 0, -beta, -alpha, &mut info, true, Arc::clone(&stop_flag));
 
-                if result.is_none() {
-                    return None;
-                }
+                result?;
 
                 score = -result.unwrap();
             }
 
-            // Alpha-beta pruning
             if score > max_score {
                 max_score = score;
-            }
-            if max_score > alpha {
-                alpha = max_score;
             }
 
             values.push(score);
@@ -249,7 +248,7 @@ impl Engine {
     }
 
     // Take a board and depth, returning eval
-    pub fn negamax(&mut self, board: Board, depth: u8, ply: usize, mut alpha: i32, mut beta: i32, info: &mut SearchInfo, stop_flag: Arc<AtomicBool>) -> Option<i32> {
+    pub fn negamax(&mut self, board: Board, depth: u8, ply: usize, mut alpha: i32, mut beta: i32, info: &mut SearchInfo, allow_null: bool, stop_flag: Arc<AtomicBool>) -> Option<i32> {
         #[inline]
         fn calculate_extensions(board: &Board) -> u8 {
             let mut extension = 0;
@@ -260,16 +259,34 @@ impl Engine {
             extension
         }
 
-
         if info.nodes & 1023 == 0 && stop_flag.load(Ordering::Relaxed) {
             return None;
         }
+
         info.nodes += 1;
         info.update_seldepth(ply);
         
         // Eval has cases for not ongoing state
         if board.status() != GameStatus::Ongoing {
             return Some(evaluate(&board, ply));
+        }
+
+        // Null Move Pruning
+        if board.checkers().is_empty() && allow_null && depth > NMP_REDUCTION + 1 && phase(&board) > 128 {
+            let mut builder = BoardBuilder::from_board(&board);
+
+            builder.side_to_move = !board.side_to_move();
+            builder.en_passant = None;
+
+            if let Ok(null_board) = builder.build() {
+                let null_value = self.negamax(null_board, depth-NMP_REDUCTION-1, ply + 1, -beta, alpha, info, false, Arc::clone(&stop_flag))?;
+                if null_value >= beta {
+                    return Some(null_value);
+                }
+                
+            }
+
+            
         }
 
         // Return transposition table value if available and good
@@ -308,7 +325,7 @@ impl Engine {
             let mut new_board= board.clone();
             new_board.play_unchecked(tt_move);
 
-            let result = self.negamax(new_board, depth-1+extension, ply+1, -beta, -alpha, info, Arc::clone(&stop_flag));
+            let result = self.negamax(new_board, depth-1+extension, ply+1, -beta, -alpha, info, allow_null, Arc::clone(&stop_flag));
 
             if result.is_none() {
                 return None;
@@ -341,7 +358,7 @@ impl Engine {
 
                 let mut new_board= board.clone();
                 new_board.play_unchecked(mv);
-                let result = self.negamax(new_board, depth-1+extension, ply + 1, -beta, -alpha, info, Arc::clone(&stop_flag));
+                let result = self.negamax(new_board, depth-1+extension, ply + 1, -beta, -alpha, info, allow_null, Arc::clone(&stop_flag));
 
                 if result.is_none() {
                     any_none = true;
@@ -371,6 +388,7 @@ impl Engine {
 
         self.t_table.set(TTEntry {
             key,
+
             bestmove,
             depth,
             score: max_score,
@@ -449,16 +467,16 @@ impl Engine {
                     };
                     let score = -score;
 
-                    if score >= beta {
-                        return true;
-                    }
-
                     if score > best_value {
                         best_value = score;
                     }
 
                     if score > alpha {
                         alpha = score;
+                    }
+
+                    if score >= beta {
+                        return true;
                     }
                 }
                 

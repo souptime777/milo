@@ -18,8 +18,8 @@ pub struct ActiveSearch {
 
 #[inline]
 fn calculate_movetime(options: UciSearchOptions, color: Color) -> Duration {
-    if options.movetime.is_some() {
-        options.movetime.unwrap()
+    if let Some(movetime) = options.movetime {
+        return movetime;
     } else if options.wtime.is_some()
         && options.btime.is_some()
         && options.winc.is_some()

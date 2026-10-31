@@ -95,7 +95,7 @@ pub const PST: [[[i32; 64]; 6]; 2] = [
 const MATE_SCORE: i32 = 1000000;
 const MAX_PHASE: i32 = 256;
 
-fn phase(board: &Board) -> i32 {
+pub fn phase(board: &Board) -> i32 {
     ((board.pieces(Piece::Knight).len() * 10
         + board.pieces(Piece::Bishop).len() * 10
         + board.pieces(Piece::Rook).len() * 24

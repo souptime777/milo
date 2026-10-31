@@ -10,6 +10,8 @@ use uci_parser::UciCommand;
 
 use cozy_chess::{Board, util::display_uci_move};
 
+use crate::eval::phase;
+
 fn main() {
     let mut board = Board::default();
     loop {
@@ -34,4 +36,5 @@ fn main() {
             );
         }
     }
+
 }
