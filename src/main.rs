@@ -10,10 +10,13 @@ use uci_parser::UciCommand;
 
 use cozy_chess::{Board, util::display_uci_move};
 
-use crate::eval::phase;
+use crate::search::PositionHistory;
+
 
 fn main() {
     let mut board = Board::default();
+    let mut position_history = PositionHistory::new();
+
     loop {
         let mut input = String::new();
 
@@ -23,7 +26,7 @@ fn main() {
             .expect("Failed to read line"); // Handles potential I/O errors
 
         let cmd = input.parse::<UciCommand>().unwrap();
-        let result = handle_uci_cmd(cmd, &mut board, false);
+        let result = handle_uci_cmd(cmd, &mut board, false, &mut position_history);
 
         if let Some(search) = result {
             sleep(search.duration);

@@ -4,11 +4,12 @@ use std::sync::{
 };
 use std::{cmp::Reverse, time::Instant};
 
-use crate::eval::{PEICE_VALUES, evaluate, phase};
+use crate::eval::{evaluate, phase};
 use cozy_chess::{Board, GameStatus, Move, util::display_uci_move};
-use cozy_chess::{BoardBuilder, Color, Piece, Rank};
+use cozy_chess::{BoardBuilder, Piece, Rank};
 use uci_parser::{UciInfo, UciResponse, UciScore};
 
+const HALFMOVE_RULE: usize = 150;
 const MAX_QUIESCENCE_PLY: usize = 32;
 const NMP_REDUCTION: u8 = 2;
 
@@ -61,6 +62,68 @@ impl TranspositionTable {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct PositionHistory {
+    hashes: Vec<u64>,
+    halfmoves: u8,
+}
+
+impl PositionHistory {
+    pub fn new() -> Self {
+        Self {
+            hashes: Vec::with_capacity(HALFMOVE_RULE),
+            halfmoves: 0,
+        }
+    }
+
+    pub fn push(&mut self, board: &Board, mv: Option<&Move>) {
+        // Clear if irreversible
+        let mut nboard = board.clone();
+
+        if let Some(mv) = mv {
+            if board.piece_on(mv.from) == Some(Piece::Pawn) || board.piece_on(mv.to).is_some() {
+                self.hashes.clear();
+                self.halfmoves = 0;
+            }
+            
+            nboard.play_unchecked(*mv);
+        }
+
+        
+        self.halfmoves = nboard.halfmove_clock();
+        self.hashes.push(nboard.hash());
+    }
+
+    fn unpush(&mut self) {
+        if self.hashes.pop().is_some() && let Some(nhalfmoves) = self.halfmoves.checked_sub(1) {
+            self.halfmoves = nhalfmoves;
+        }
+    }
+
+    fn is_halfmove_rule(&self) -> bool {
+        self.hashes.len() >= HALFMOVE_RULE
+    }
+
+    fn is_repetition(&self, hash: u64, repetitions: u32) -> bool {
+        let mut reps: u32 = 0;
+
+        let Some(end) = self.hashes.len().checked_sub(3) else {
+            return false;
+        };
+
+        for i in (0..end).rev().step_by(2) {
+            if self.hashes[i] == hash {
+                reps += 1;
+
+                if reps == repetitions {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+}
+
 #[derive(Debug)]
 pub struct SearchInfo {
     depth: u8,
@@ -90,13 +153,15 @@ impl SearchInfo {
 
 pub struct Engine {
     t_table: TranspositionTable,
+    position_history: PositionHistory,
 }
 
 impl Engine {
-    pub fn new(t_table_size: usize) -> Self {
+    pub fn new(t_table_size: usize, position_history: PositionHistory) -> Self {
         assert!(t_table_size.is_power_of_two());
         Self {
             t_table: TranspositionTable::new(t_table_size),
+            position_history: position_history.clone(),
         }
     }
 
@@ -105,9 +170,10 @@ impl Engine {
         depth: u8,
         t_table_size: usize,
         verbose: bool,
+        position_history: PositionHistory,
         stop_flag: Arc<AtomicBool>,
     ) -> Move {
-        let mut engine = Self::new(t_table_size);
+        let mut engine = Self::new(t_table_size, position_history);
 
         // Generate moves
         let mut moves: Vec<Move> = Vec::new();
@@ -214,15 +280,23 @@ impl Engine {
 
         // Loop over all moves
         for (move_idx, mv) in moves.iter().enumerate() {
+
+            // Create a new board and run negamax
+            let mut new_board = board.clone();
+            new_board.play_unchecked(*mv);
+
+            // Draw check
+            if self.position_history.is_halfmove_rule()
+            || self.position_history.is_repetition(new_board.hash(), 2) {
+                values.push(0);
+                continue;
+            }
+
             let reduction = if can_apply_lmr(&board, mv) {
                 lmr(depth, move_idx)
             } else {
                 0
             };
-
-            // Create a new board and run negamax
-            let mut new_board = board.clone();
-            new_board.play_unchecked(*mv);
 
             // negamax search
             let result = self.negamax(
@@ -347,8 +421,8 @@ impl Engine {
 
         let mut bestmove: Option<Move> = None;
 
-        if let Some(entry) = self.t_table.entry_at_key(key) {
-            if entry.key == key {
+        if let Some(entry) = self.t_table.entry_at_key(key)
+            && entry.key == key {
                 bestmove = entry.bestmove;
                 if entry.depth >= depth {
                     match entry.bound {
@@ -361,7 +435,6 @@ impl Engine {
                     }
                 }
             }
-        }
 
         // Quiesce at leaf, updating transposition table
         if depth == 0 {
@@ -374,24 +447,35 @@ impl Engine {
         let mut max_score: i32 = -i32::MAX;
         if let Some(tt_move) = bestmove {
             let mut new_board = board.clone();
+            self.position_history.push(&board, Some(&tt_move));
             new_board.play_unchecked(tt_move);
+            
 
-            let result = self.negamax(
-                new_board,
-                depth - 1 + extension,
-                ply + 1,
-                -beta,
-                -alpha,
-                info,
-                allow_null,
-                Arc::clone(&stop_flag),
-            );
+            let score;
 
-            if result.is_none() {
-                return None;
+            if self.position_history.is_halfmove_rule()
+            || self.position_history.is_repetition(board.hash(), 1) {
+                score = 0;
+            } else {
+                let result = self.negamax(
+                    new_board,
+                    depth - 1 + extension,
+                    ply + 1,
+                    -beta,
+                    -alpha,
+                    info,
+                    allow_null,
+                    Arc::clone(&stop_flag),
+                );
+
+
+
+                result?;
+
+                score = -result.unwrap();
             }
+            self.position_history.unpush();
 
-            let score = -result.unwrap();
 
             if score > max_score {
                 max_score = score;
@@ -410,31 +494,43 @@ impl Engine {
             // Sort
 
             for mv in moves {
-                if let Some(tt_move) = bestmove {
-                    if tt_move == mv {
+                if let Some(tt_move) = bestmove
+                    && tt_move == mv {
                         continue;
                     }
-                }
-
+                
                 let mut new_board = board.clone();
+                self.position_history.push(&board, Some(&mv));
                 new_board.play_unchecked(mv);
-                let result = self.negamax(
-                    new_board,
-                    depth - 1 + extension,
-                    ply + 1,
-                    -beta,
-                    -alpha,
-                    info,
-                    allow_null,
-                    Arc::clone(&stop_flag),
-                );
+                
+                let score;
 
-                if result.is_none() {
-                    any_none = true;
-                    return true;
+                if self.position_history.is_halfmove_rule()
+                || self.position_history.is_repetition(board.hash(), 1) {
+                    score = 0;
+                } else {
+                    let result = self.negamax(
+                        new_board,
+                        depth - 1 + extension,
+                        ply + 1,
+                        -beta,
+                        -alpha,
+                        info,
+                        allow_null,
+                        Arc::clone(&stop_flag),
+                    );
+
+
+
+                    if result.is_none() {
+                        any_none = true;
+                        return true;
+                    }
+
+                    score = -result.unwrap();
                 }
+                self.position_history.unpush();
 
-                let score = -result.unwrap();
 
                 if score > max_score {
                     max_score = score;
@@ -473,7 +569,7 @@ impl Engine {
     }
 
     fn quiesce(
-        &self,
+        &mut self,
         board: Board,
         ply: usize,
         quiescence_ply: usize,
@@ -522,21 +618,33 @@ impl Engine {
                     || !(mv.to.bitboard() & enemy_pieces).is_empty()
                 {
                     let mut new_board = board.clone();
+                    self.position_history.push(&board, Some(&mv));
                     new_board.play_unchecked(mv);
-                    let result = self.quiesce(
-                        new_board,
-                        ply + 1,
-                        quiescence_ply + 1,
-                        -beta,
-                        -alpha,
-                        info,
-                        stop_flag,
-                    );
-                    let Some(score) = result else {
-                        interrupted = true;
-                        return true;
-                    };
-                    let score = -score;
+
+                    let score;
+
+                    if self.position_history.is_halfmove_rule()
+                    || self.position_history.is_repetition(new_board.hash(), 1) {
+                        score = 0;
+                    } else {
+                        let result = self.quiesce(
+                            new_board,
+                            ply + 1,
+                            quiescence_ply + 1,
+                            -beta,
+                            -alpha,
+                            info,
+                            stop_flag,
+                        );
+
+                        if result.is_none() {
+                            interrupted = true;
+                            return true;
+                        }
+
+                        score = -result.unwrap();
+                    }
+                    self.position_history.unpush();
 
                     if score > best_value {
                         best_value = score;
