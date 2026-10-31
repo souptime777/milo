@@ -120,7 +120,7 @@ pub const PST: [[[i32; 64]; 6]; 2] = [
             -24, -20,  10,   9,  -1,  -9, -19, -41,
             -17,   3,  22,  22,  22,  11,   8, -18,
             -18,  -6,  16,  25,  16,  17,   4, -18,
-            -23,  -3,  -1,  15,  10,  -3, -20, -22,
+            -23,  -3,  10000,  15,  10,  -3, -20, -22,
             -42, -20, -10,  -5,  -2, -20, -23, -44,
             -29, -51, -23, -15, -22, -18, -50, -64,
         ],
@@ -181,7 +181,7 @@ fn phase(board: &Board) -> i32 {
     ((board.pieces(Piece::Knight).len() * 10 + board.pieces(Piece::Bishop).len() * 10 + board.pieces(Piece::Rook).len() * 24 + board.pieces(Piece::Queen).len() * 40) as i32).min(MAX_PHASE)
 }
 
-pub fn evaluate(board: &Board, depth: u8) -> i32 {
+pub fn evaluate(board: &Board, ply: usize) -> i32 {
 
     fn pst_value(board: &Board) -> i32 {
         let phase = phase(board);
@@ -199,8 +199,9 @@ pub fn evaluate(board: &Board, depth: u8) -> i32 {
                         eg_score += PST[1][piece][square_index] + PEICE_VALUES[1][piece];
                     }
                     Color::Black => {
-                        mg_score -= PST[0][piece][square_index ^ 56] + PEICE_VALUES[0][piece];
-                        eg_score -= PST[1][piece][square_index ^ 56] + PEICE_VALUES[1][piece];
+                        let mirrored_index = square_index ^ 56;
+                        mg_score -= PST[0][piece][mirrored_index] + PEICE_VALUES[0][piece];
+                        eg_score -= PST[1][piece][mirrored_index] + PEICE_VALUES[1][piece];
                     }
                 }
 
@@ -210,7 +211,7 @@ pub fn evaluate(board: &Board, depth: u8) -> i32 {
     }
 
     let white_perspective_value = match board.status() {
-        GameStatus::Won => return -MATE_SCORE + depth as i32,
+        GameStatus::Won => return -MATE_SCORE + ply as i32,
         GameStatus::Drawn => 0,
         GameStatus::Ongoing => pst_value(board),
     };

@@ -4,8 +4,10 @@ use std::{
 use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
 
 use cozy_chess::{Board, GameStatus, Move, util::display_uci_move};
-use uci_parser::{UciInfo, UciResponse};
+use uci_parser::{UciInfo, UciResponse, UciScore};
 use crate::eval::{PEICE_VALUES, evaluate};
+
+const MAX_QUIESCENCE_PLY: usize = 32;
 
 #[derive(Clone)]
 struct TTEntry {
@@ -77,6 +79,32 @@ fn heuristic_move_score(board: &Board, mv: &Move) -> i32 {
     score
 }
 
+#[derive(Debug)]
+pub struct SearchInfo {
+    depth: u8,
+    seldepth: usize,
+    nodes: u64,
+    score: i32,
+}
+
+impl SearchInfo {
+    fn new() -> Self {
+        Self {
+            depth: 0,
+            seldepth: 0,
+            nodes: 0,
+            score: 0,
+        }
+    }
+
+    fn update_seldepth(&mut self, ply: usize) {
+        if ply > self.seldepth {
+            self.seldepth = ply;
+        }
+    }
+
+}
+
 pub struct Engine {
     t_table: TranspositionTable,
 }
@@ -94,6 +122,7 @@ impl Engine {
 
         // Generate moves
         let mut moves: Vec<Move> = Vec::new();
+        let mut info: SearchInfo;
 
         board.generate_moves(|mv| {
             moves.extend(mv);
@@ -103,7 +132,6 @@ impl Engine {
         // Iteratively search, updating move order
         for d in 1..=depth {
             let start = Instant::now();
-            let nodes: u64;
 
             let result = engine.search_fixed_depth(board.clone(), d, moves.clone(), Arc::clone(&stop_flag));
 
@@ -111,15 +139,17 @@ impl Engine {
                 break;
             }
 
-            (moves, nodes) = result.unwrap();
+            (moves, info) = result.unwrap();
 
             // Print info to terminal
             if verbose {
-                let nps = (nodes as f32 / start.elapsed().as_secs_f32()) as u32;
+                let nps = (info.nodes as f32 / start.elapsed().as_secs_f32()) as u32;
 
                 let info = UciInfo::new()
                 .depth(d)
-                .nodes(nodes)
+                .seldepth(info.seldepth)
+                .nodes(info.nodes)
+                .score(UciScore::cp(info.score))
                 .nps(nps)
                 .currmove(display_uci_move(&board, moves[0]))
                 .time(start.elapsed().as_millis())
@@ -134,7 +164,7 @@ impl Engine {
         moves[0]
     }
 
-    pub fn search_fixed_depth(&mut self, board: Board, depth: u8, moves: Vec<Move>, stop_flag: Arc<AtomicBool>) -> Option<(Vec<Move>, u64)> {
+    pub fn search_fixed_depth(&mut self, board: Board, depth: u8, moves: Vec<Move>, stop_flag: Arc<AtomicBool>) -> Option<(Vec<Move>, SearchInfo)> {
 
         #[inline]
         fn lmr(depth: u8, move_idx: usize) -> u8 {
@@ -142,37 +172,50 @@ impl Engine {
                 return 0;
             }
 
-            let reduction = (0.3 * (depth as f32).ln() * (move_idx as f32).ln()) as u8;
+            let reduction = (0.5 * (depth as f32).ln() * (move_idx as f32).ln()) as u8;
 
             reduction.min(depth - 2)
         }
 
+        let mut info = SearchInfo::new();
+        info.depth = depth;
+
         let mut alpha = -i32::MAX;
         let beta = i32::MAX;
-        let mut nodes_evaluated: u64 = 0;
         let mut values: Vec<i32> = Vec::with_capacity(moves.len());
         let mut max_score = -i32::MAX;
         // Loop over all moves
         for (i, mv) in moves.iter().enumerate() {
 
             let reduction = lmr(depth, i);
-
-            let final_depth: u8 = depth - reduction;
-
         
             // Create a new board and run negamax
             let mut new_board = board.clone();
             new_board.play_unchecked(*mv);
 
-            // Update values
-            let result = self.negamax(new_board, final_depth-1, -beta, -alpha, &mut nodes_evaluated, Arc::clone(&stop_flag));
+            // negamax search
+            let result = self.negamax(new_board, depth - 1 - reduction, 0, -beta, -alpha, &mut info, Arc::clone(&stop_flag));
 
             if result.is_none() {
                 return None;
             }
 
-            let score = -result.unwrap();
+            let mut score = -result.unwrap();
 
+            // Research if reduced move triggered cutoff
+            if reduction != 0  && score > alpha {
+                let mut new_board = board.clone();
+                new_board.play_unchecked(*mv);
+                let result = self.negamax(new_board, depth - 1, 0, -beta, -alpha, &mut info, Arc::clone(&stop_flag));
+
+                if result.is_none() {
+                    return None;
+                }
+
+                score = -result.unwrap();
+            }
+
+            // Alpha-beta pruning
             if score > max_score {
                 max_score = score;
             }
@@ -183,23 +226,37 @@ impl Engine {
             values.push(score);
         }
 
+        info.score = max_score;
+
         // Update move order
         let mut indices: Vec<usize> = (0..moves.len()).collect();
         indices.sort_unstable_by_key(|&i| Reverse(values[i]));
 
-        Some((indices.iter().map(|&i| moves[i]).collect(), nodes_evaluated))
+        Some((indices.iter().map(|&i| moves[i]).collect(), info))
     }
 
     // Take a board and depth, returning eval
-    pub fn negamax(&mut self, board: Board, depth: u8, mut alpha: i32, mut beta: i32, nodes: &mut u64, stop_flag: Arc<AtomicBool>) -> Option<i32> {
-        if *nodes & 1023 == 0 && stop_flag.load(Ordering::Relaxed) {
+    pub fn negamax(&mut self, board: Board, depth: u8, ply: usize, mut alpha: i32, mut beta: i32, info: &mut SearchInfo, stop_flag: Arc<AtomicBool>) -> Option<i32> {
+        #[inline]
+        fn calculate_extensions(board: &Board) -> u8 {
+            let mut extension = 0;
+
+            if !board.checkers().is_empty() {
+                extension += 1;
+            }
+            extension
+        }
+
+
+        if info.nodes & 1023 == 0 && stop_flag.load(Ordering::Relaxed) {
             return None;
         }
-        *nodes += 1;
+        info.nodes += 1;
+        info.update_seldepth(ply);
         
         // Eval has cases for not ongoing state
         if board.status() != GameStatus::Ongoing {
-            return Some(evaluate(&board, depth));
+            return Some(evaluate(&board, ply));
         }
 
         // Return transposition table value if available and good
@@ -225,19 +282,20 @@ impl Engine {
             }
         }
 
-        // Evaluate at leaf, updating transposition table
+        // Quiesce at leaf, updating transposition table
         if depth == 0 {
-            return Some(self.quiescence_search(board, depth, -beta, -alpha, nodes));
+            return self.quiesce(board, ply + 1, 0, -beta, -alpha, info, &stop_flag);
         }
         
-
         // Run search on all moves, with alphabeta pruning
+        let extension = calculate_extensions(&board);
+
         let mut max_score: i32 = -i32::MAX;
         if let Some(tt_move) = bestmove {
             let mut new_board= board.clone();
             new_board.play_unchecked(tt_move);
 
-            let result = self.negamax(new_board, depth-1, -beta, -alpha, nodes, Arc::clone(&stop_flag));
+            let result = self.negamax(new_board, depth-1+extension, ply+1, -beta, -alpha, info, Arc::clone(&stop_flag));
 
             if result.is_none() {
                 return None;
@@ -270,7 +328,7 @@ impl Engine {
 
                 let mut new_board= board.clone();
                 new_board.play_unchecked(mv);
-                let result = self.negamax(new_board, depth-1, -beta, -alpha, nodes, Arc::clone(&stop_flag));
+                let result = self.negamax(new_board, depth-1+extension, ply + 1, -beta, -alpha, info, Arc::clone(&stop_flag));
 
                 if result.is_none() {
                     any_none = true;
@@ -315,9 +373,31 @@ impl Engine {
         Some(max_score)
     }
 
-    fn quiescence_search(&self, board: Board, depth: u8, mut alpha: i32, beta: i32, nodes: &mut u64) -> i32{
-        let static_eval = evaluate(&board, depth);
-        *nodes += 1;
+    fn quiesce(
+        &self,
+        board: Board,
+        ply: usize,
+        quiescence_ply: usize,
+        mut alpha: i32,
+        beta: i32,
+        info: &mut SearchInfo,
+        stop_flag: &AtomicBool,
+    ) -> Option<i32> {
+        info.nodes += 1;
+        info.update_seldepth(ply);
+
+        if info.nodes & 1023 == 0 && stop_flag.load(Ordering::Relaxed) {
+            return None;
+        }
+
+        if board.status() != GameStatus::Ongoing {
+            return Some(evaluate(&board, ply));
+        }
+
+        let static_eval = evaluate(&board, ply);
+        if quiescence_ply >= MAX_QUIESCENCE_PLY {
+            return Some(static_eval);
+        }
 
         let in_check = !board.checkers().is_empty();
         let mut best_value = if in_check { -i32::MAX } else { static_eval };
@@ -325,7 +405,7 @@ impl Engine {
         if !in_check {
             // Stand Pat
             if best_value >= beta {
-                return best_value;
+                return Some(best_value);
             }
 
             if best_value > alpha {
@@ -334,14 +414,27 @@ impl Engine {
         }
 
         let enemy_pieces = board.colors(!board.side_to_move());
+        let mut interrupted = false;
         board.generate_moves(|moves| {
-
             for mv in moves {
-                // Extend search on captures, promotions and checks
-                if in_check || (!mv.promotion.is_none() || !(mv.to.bitboard() & enemy_pieces).is_empty()) {
+                // Extend captures, promotions, and all check evasions.
+                if in_check || !mv.promotion.is_none() || !(mv.to.bitboard() & enemy_pieces).is_empty() {
                     let mut new_board = board.clone();
                     new_board.play_unchecked(mv);
-                    let score = -self.quiescence_search(new_board, depth, -beta, -alpha, nodes);
+                    let result = self.quiesce(
+                        new_board,
+                        ply + 1,
+                        quiescence_ply + 1,
+                        -beta,
+                        -alpha,
+                        info,
+                        stop_flag,
+                    );
+                    let Some(score) = result else {
+                        interrupted = true;
+                        return true;
+                    };
+                    let score = -score;
 
                     if score >= beta {
                         return true;
@@ -362,6 +455,10 @@ impl Engine {
             false
         });
 
-        best_value
+        if interrupted {
+            None
+        } else {
+            Some(best_value)
+        }
     }
 }

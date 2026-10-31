@@ -9,7 +9,8 @@ use uci::handle_uci_cmd;
 use uci_parser::UciCommand;
 
 
-use cozy_chess::{Board, util::display_uci_move};
+use cozy_chess::{Board, util::{display_uci_move}};
+
 
 
 
