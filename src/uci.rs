@@ -1,8 +1,11 @@
-use std::{sync::{Arc, atomic::AtomicBool}, thread};
+use std::{
+    sync::{Arc, atomic::AtomicBool},
+    thread,
+};
 
 use cozy_chess::{Board, Color, Move, util::parse_uci_move};
+use std::time::{Duration, Instant};
 use uci_parser::{UciCommand, UciSearchOptions};
-use std::time::{Instant, Duration};
 
 use crate::search::Engine;
 
@@ -14,17 +17,14 @@ pub struct ActiveSearch {
 }
 
 #[inline]
-fn calculate_movetime(
-    options: UciSearchOptions,
-    color: Color,
-) -> Duration {
+fn calculate_movetime(options: UciSearchOptions, color: Color) -> Duration {
     if options.movetime.is_some() {
         options.movetime.unwrap()
-    } else if 
-    options.wtime.is_some()
-    && options.btime.is_some()
-    && options.winc.is_some()
-    && options.binc.is_some() {
+    } else if options.wtime.is_some()
+        && options.btime.is_some()
+        && options.winc.is_some()
+        && options.binc.is_some()
+    {
         // Actual calculation
 
         let time = match color {
@@ -36,22 +36,18 @@ fn calculate_movetime(
             Color::White => options.winc.unwrap().as_millis(),
             Color::Black => options.binc.unwrap().as_millis(),
         } as u64;
-        
-        Duration::from_millis(
-            std::cmp::min(
-                time / 30 + inc / 2,
-                50,
-            )
-        )
-        
 
+        Duration::from_millis(std::cmp::min(time / 30 + inc / 2, 50))
     } else {
         Duration::from_millis(5000)
     }
-    
 }
 
-pub fn handle_uci_cmd(cmd: UciCommand, board: &mut Board, search_active: bool) -> Option<ActiveSearch> {
+pub fn handle_uci_cmd(
+    cmd: UciCommand,
+    board: &mut Board,
+    search_active: bool,
+) -> Option<ActiveSearch> {
     match cmd {
         UciCommand::Uci => {
             println!("id name Milo");
@@ -83,7 +79,6 @@ pub fn handle_uci_cmd(cmd: UciCommand, board: &mut Board, search_active: bool) -
         UciCommand::Go(search_options) => {
             // Return early if there is already an ongoing search
 
-
             if search_active {
                 return None;
             }
@@ -108,10 +103,10 @@ pub fn handle_uci_cmd(cmd: UciCommand, board: &mut Board, search_active: bool) -
                 handle: search_thread_handle,
                 start: Instant::now(),
                 duration: movetime,
-            })
+            });
         }
-        
-        _ => {},
+
+        _ => {}
     }
     None
 }

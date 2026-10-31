@@ -3,6 +3,7 @@ use std::{
 };
 use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
 
+use cozy_chess::{Piece, Rank};
 use cozy_chess::{Board, GameStatus, Move, util::display_uci_move};
 use uci_parser::{UciInfo, UciResponse, UciScore};
 use crate::eval::{PEICE_VALUES, evaluate};
@@ -56,27 +57,6 @@ impl TranspositionTable {
         }
         self.table[idx] = Some(entry);
     }
-}
-
-// Return a score for move ordering to increase pruning
-fn heuristic_move_score(board: &Board, mv: &Move) -> i32 {
-    let mut score: i32 = 0;
-    
-
-    // Promotion bonus
-    if let Some(promotion) = mv.promotion {
-        score += 800 + PEICE_VALUES[1][promotion as usize];
-    }
-
-    // Prioritise capturing high value piece with low value piece
-    if let Some(victim) = board.piece_on(mv.to) {
-        if let Some(attacker) = board.piece_on(mv.from) {
-            score += 5000 + 10 * 
-            (PEICE_VALUES[1][victim as usize] - PEICE_VALUES[1][attacker as usize]);
-        }
-    }
-
-    score
 }
 
 #[derive(Debug)]
@@ -168,13 +148,46 @@ impl Engine {
 
         #[inline]
         fn lmr(depth: u8, move_idx: usize) -> u8 {
-            if depth < 3 || move_idx < 3 {
+            if depth <= 4 || move_idx <= 4 {
                 return 0;
             }
 
             let reduction = (0.5 * (depth as f32).ln() * (move_idx as f32).ln()) as u8;
 
             reduction.min(depth - 2)
+        }
+
+        #[inline]
+        fn can_apply_lmr(board: &Board, mv: &Move) -> bool {
+            // Root is in check:
+            if !board.checkers().is_empty() {
+                return false;
+            }
+
+            // Move is capture
+            if board.piece_on(mv.to).is_some() {
+                return false;
+            }
+
+            // Move is promotion
+            if let Some(piece) = board.piece_on(mv.from) {
+                let rank = mv.to.rank();
+                if piece == Piece::Pawn && (rank == Rank::First || rank == Rank::Eighth) {
+                    return false;
+                }
+            }
+
+            /* Move gives check
+            creating new board only acceptable because this is only done at root.
+            */ 
+            let mut test_board = board.clone();
+            test_board.play_unchecked(*mv);
+
+            if !test_board.checkers().is_empty() {
+                return false;
+            }
+
+            true
         }
 
         let mut info = SearchInfo::new();
@@ -187,7 +200,7 @@ impl Engine {
         // Loop over all moves
         for (i, mv) in moves.iter().enumerate() {
 
-            let reduction = lmr(depth, i);
+            let reduction = if can_apply_lmr(&board, mv) {lmr(depth, i)} else { 0 };
         
             // Create a new board and run negamax
             let mut new_board = board.clone();
@@ -345,7 +358,7 @@ impl Engine {
                     alpha = max_score;
                 }
                 if alpha >= beta {
-                    break;
+                    return true;
                 }
                 
             }
