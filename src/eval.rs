@@ -1,4 +1,4 @@
-use cozy_chess::{Board, Color, GameStatus, Piece, Square};
+use cozy_chess::{Board, Color, File, GameStatus, Piece, Rank, Square};
 pub const PEICE_VALUES: [[i32; 6]; 2] = [[82, 337, 365, 477, 1025, 0], [94, 281, 297, 512, 936, 0]];
 // access with PST[phase][piece][square];
 pub const PST: [[[i32; 64]; 6]; 2] = [
@@ -104,29 +104,97 @@ pub fn phase(board: &Board) -> i32 {
 }
 
 pub fn evaluate(board: &Board, ply: usize) -> i32 {
+    #[inline]
     fn pst_value(board: &Board) -> i32 {
         let phase = phase(board);
 
         let mut mg_score: i32 = 0;
         let mut eg_score: i32 = 0;
+        for file in File::ALL.iter() {
+            // Double Pawn
+            let wpawns_in_file = (board.colored_pieces(Color::White, Piece::Pawn) & file.bitboard()).into_iter().count();
+            if wpawns_in_file >= 2 {
+                mg_score -= wpawns_in_file as i32 * 20;
+                eg_score -= wpawns_in_file as i32 * 20;
+            }
 
-        for square in Square::ALL.iter() {
-            let square_index = *square as usize;
-            if let Some(color) = board.color_on(*square) {
-                let piece = board.piece_on(*square).unwrap() as usize;
-                match color {
-                    Color::White => {
-                        let mirrored_index = square_index ^ 56;
-                        mg_score += PST[0][piece][mirrored_index] + PEICE_VALUES[0][piece];
-                        eg_score += PST[1][piece][mirrored_index] + PEICE_VALUES[1][piece];
-                    }
-                    Color::Black => {
-                        mg_score -= PST[0][piece][square_index] + PEICE_VALUES[0][piece];
-                        eg_score -= PST[1][piece][square_index] + PEICE_VALUES[1][piece];
+            let bpawns_in_file = (board.colored_pieces(Color::Black, Piece::Pawn) & file.bitboard()).into_iter().count();
+            if bpawns_in_file >= 2 {
+                mg_score += bpawns_in_file as i32 * 20;
+                eg_score += bpawns_in_file as i32 * 20;
+            }
+
+
+
+            for rank in Rank::ALL.iter() {
+                let square = Square::new(*file, *rank);
+                let square_index = square as usize;
+                if let Some(color) = board.color_on(square) {
+
+                    let piece = board.piece_on(square).unwrap();
+                    let piece_id = piece as usize;
+
+                    match color {
+                        Color::White => {
+                            let mirrored_index = square_index ^ 56;
+                            mg_score += PST[0][piece_id][mirrored_index] + PEICE_VALUES[0][piece_id];
+                            eg_score += PST[1][piece_id][mirrored_index] + PEICE_VALUES[1][piece_id];
+                        }
+                        Color::Black => {
+                            mg_score -= PST[0][piece_id][square_index] + PEICE_VALUES[0][piece_id];
+                            eg_score -= PST[1][piece_id][square_index] + PEICE_VALUES[1][piece_id];
+                        }
                     }
                 }
             }
         }
+
+        for color in Color::ALL {
+            let sign = if color == Color::White {1} else {-1};
+
+            // Knight mobility bonus
+            board.generate_moves_for(board.colored_pieces(color, Piece::Knight), |moves| {
+                let mobility = moves.to.into_iter().count() as i32;
+                mg_score += 10 * mobility * sign;
+                eg_score += 7 * mobility * sign;
+                false
+            });
+
+            // Bishop mobility bonus
+            board.generate_moves_for(board.colored_pieces(color, Piece::Bishop), |moves| {
+                let mobility = moves.to.into_iter().count() as i32;
+                mg_score += 5 * mobility * sign;
+                eg_score += 3 * mobility * sign;
+                
+                false
+            });
+
+            // Rook mobility bonus
+            board.generate_moves_for(board.colored_pieces(color, Piece::Rook), |moves| {
+                let mobility = moves.to.into_iter().count() as i32;
+                eg_score += 8 * mobility * sign;
+                
+                false
+            });
+
+            // Queen mobility bonus
+            board.generate_moves_for(board.colored_pieces(color, Piece::Queen), |moves| {
+                let mobility = moves.to.into_iter().count() as i32;
+
+                eg_score += 5 * mobility * sign;
+                false
+            });
+
+            // King mobility reduction
+            board.generate_moves_for(board.colored_pieces(color, Piece::King), |moves| {
+                let mobility = moves.to.into_iter().count() as i32;
+                mg_score -= 20 * mobility * sign;
+                eg_score += 5 * mobility * sign;
+                false
+            });
+            
+        }
+
         ((mg_score * phase) + (eg_score * (MAX_PHASE - phase))) / MAX_PHASE
     }
 
