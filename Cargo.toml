@@ -1,0 +1,14 @@
+[package]
+name = "milo"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+name = "milo_core"
+path = "src/lib.rs"
+
+[[bin]]
+name = "milo"
+path = "src/main.rs"
+
+[dependencies]
