@@ -2,6 +2,9 @@ use std::fmt;
 
 use crate::*;
 
+/// A chess move.
+/// 
+/// Note that it is only valid for one board at one time.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct Move(u16);

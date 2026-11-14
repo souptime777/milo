@@ -1,6 +1,5 @@
 use std::{
-    str::FromStr,
-    fmt,
+    fmt, str::FromStr,
 };
 
 
@@ -301,17 +300,22 @@ impl Board {
 
         if let Some(captured) = self.mailbox[sq_idx] {
             self.piece_bitboards[captured as usize] ^= sq_bb;
+            self.color_bitboards[captured.color() as usize] ^= sq_bb;
         }
 
         self.piece_bitboards[piece as usize] |= sq_bb;
+        self.color_bitboards[piece as usize] |= sq_bb;
         self.mailbox[sq_idx] = Some(piece)
     }
 
     /// Remove a piece
     #[inline(always)]
     pub fn remove_piece(&mut self, sq: Square) {
+        let sq_bb = sq.bitboard();
+
         if let Some(piece) = self.piece_on(sq) {
-            self.piece_bitboards[piece as usize] ^= sq.bitboard();
+            self.piece_bitboards[piece as usize] ^= sq_bb;
+            self.color_bitboards[piece.color() as usize] ^= sq_bb;
             self.mailbox[sq as usize] = None;
         }
     }
@@ -322,19 +326,94 @@ impl Board {
         let from = mv.from();
         let to = mv.to();
         let flag = mv.flag();
+        let moved_piece = self.piece_on(from).unwrap();
+        let move_mask = from.bitboard() | to.bitboard();
+
         match flag {
-            MoveFlag::Quiet => {
-                let piece = self.piece_on(from).unwrap();
+            MoveFlag::Quiet | MoveFlag::DoublePawn => {
                 let move_mask = from.bitboard() | to.bitboard();
 
                 // Update bitboards.
-                self.piece_bitboards[piece as usize] ^= move_mask;
+                self.piece_bitboards[moved_piece as usize] ^= move_mask;
+                self.color_bitboards[moved_piece.color() as usize] ^= move_mask;
 
                 // Update mailbox.
                 self.mailbox.swap(from as usize, to as usize);
+
+                // Update halfmove clock
+                if moved_piece.piece_type() == PieceType::Pawn {
+                    self.halfmove_clock = 0;
+                } else {
+                    self.halfmove_clock += 1;
+                }
+            }
+
+            MoveFlag::KingCastle => {
+                // Update king bitboard.
+                self.piece_bitboards[moved_piece as usize] ^= move_mask;
+                self.color_bitboards[moved_piece.color() as usize] ^= move_mask;
+
+                // Update rook bitboard.
+                let from_n = from.bitboard().0;
+                let rook_mask = Bitboard(from_n << 1 | from_n << 3);
+                self.piece_bitboards[Piece::new(PieceType::Rook, self.side_to_move) as usize] ^= rook_mask;
+                self.color_bitboards[self.side_to_move as usize]  ^= rook_mask;
+
+                // Update mailbox.
+                let from_idx = from as usize;
+                self.mailbox.swap(from_idx, to as usize);
+                self.mailbox.swap(from_idx + 3, from_idx + 1);
+
+                // Update halfmove clock
+                self.halfmove_clock += 1;
+            }
+
+            MoveFlag::QueenCastle => {
+                // Update King bitboard.
+                self.piece_bitboards[moved_piece as usize] ^= move_mask;
+                self.color_bitboards[moved_piece.color() as usize] ^= move_mask;
+
+                // Update rook bitboard.
+                let from_n = from.bitboard().0;
+                let rook_mask = Bitboard(from_n >> 1 | from_n >> 4);
+                self.piece_bitboards[Piece::new(PieceType::Rook, self.side_to_move) as usize] ^= rook_mask;
+                self.color_bitboards[self.side_to_move as usize]  ^= rook_mask;
+
+                // Update mailbox.
+                let from_idx = from as usize;
+                self.mailbox.swap(from_idx, to as usize);
+                self.mailbox.swap(from_idx - 4, from_idx - 1);
+
+                // Update halfmove clock
+                self.halfmove_clock += 1;
+            }
+
+            MoveFlag::Capture => {
+                let captured_piece = self.piece_on(to).unwrap();
+                let to_bb = to.bitboard();
+                
+                // Update bitboards
+                self.piece_bitboards[moved_piece as usize] ^= move_mask;
+                self.color_bitboards[moved_piece.color() as usize] ^= move_mask;
+                self.piece_bitboards[captured_piece as usize] ^= to_bb;
+                self.color_bitboards[captured_piece.color() as usize] ^= to_bb;
+                
+                // Update mailbox
+                self.mailbox[from as usize] = None;
+                self.mailbox[to as usize] = Some(moved_piece);
+
+                // Update halfmove clock
+                self.halfmove_clock = 0;
             }
 
             _ => todo!(),
+        }
+
+        // Update misc data
+        self.side_to_move = !self.side_to_move;
+        
+        if self.side_to_move == Color::White {
+            self.fullmove_clock += 1;
         }
 
     }
