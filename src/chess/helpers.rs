@@ -59,7 +59,7 @@ macro_rules! enum_char_conv {
             type Err = $error;
 
             fn from_str(s: &str) -> Result<Self, Self::Err> {
-                use core::convert::TryInto;
+                use std::convert::TryInto;
 
                 let mut chars = s.chars();
                 let c = chars.next().ok_or($error)?;

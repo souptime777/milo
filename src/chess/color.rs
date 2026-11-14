@@ -1,6 +1,6 @@
 use core::ops::Not;
 
-crate::types::helpers::define_enum! {
+crate::chess::helpers::define_enum! {
     #[repr(u8)]
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
     /// The color assigned to either player.
@@ -10,7 +10,7 @@ crate::types::helpers::define_enum! {
     }
 }
 
-crate::types::helpers::enum_char_conv! {
+crate::chess::helpers::enum_char_conv! {
     Color, ColorParseError {
         White = 'w',
         Black = 'b'

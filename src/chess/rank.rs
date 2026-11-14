@@ -1,6 +1,6 @@
 use crate::*;
 
-crate::types::helpers::define_enum! {
+crate::chess::helpers::define_enum! {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
     /// An enum representing any one file (column) on a board.
     pub enum Rank {
@@ -50,7 +50,7 @@ impl TryFrom<u64> for Rank {
     }
 }
 
-crate::types::helpers::enum_char_conv! {
+crate::chess::helpers::enum_char_conv! {
     Rank, RankParseError {
         First = '1',
         Second = '2',

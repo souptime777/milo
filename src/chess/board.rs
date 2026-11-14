@@ -1,5 +1,8 @@
-use core::str::FromStr;
-use std::fmt;
+use std::{
+    str::FromStr,
+    fmt,
+};
+
 
 use crate::*;
 
@@ -15,16 +18,28 @@ pub struct CastlingRights {
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Board {
     // Bitboard for each PieceType and Color.
-    pieces: [Bitboard; 6],
-    colors: [Bitboard; 2],
+    piece_bitboards: [Bitboard; 12],
+    color_bitboards: [Bitboard; 2],
 
+    /* 
+    An array that holds the same information as the bitboards.
+    It is technically redundant information, but is faster to index in some cases
+    */
     mailbox: [Option<Piece>; 64],
 
+    // The color of the player who will play the next turn.
     side_to_move: Color,
+
+    // Holds kingside + queenside castling rights for both players.
     castling_rights: CastlingRights,
+
+    // The square behind a pawn if it were pushed to squares in the last move.
     ep_square: Option<Square>,
 
+    // The amount moves since the last capture or pawn move.
     halfmove_clock: u16,
+
+    // The amount of full moves that have been played by both players
     fullmove_clock: u16,
 }
 
@@ -55,16 +70,16 @@ impl FromStr for Board {
         let mut mailbox: [Option<Piece>; 64] = [None; 64];
         let mut current_piece_idx: usize = 0;
 
-        let mut pieces = [Bitboard::EMPTY; 6];
-        let mut colors = [Bitboard::EMPTY; 2];
+        let mut piece_bitboards = [Bitboard::EMPTY; 12];
+        let mut color_bitboards = [Bitboard::EMPTY; 2];
 
         for char in position_field.chars() {
             if let Ok(piece) = Piece::try_from(char) {
                 mailbox[current_piece_idx] = Some(piece);
                 let bit = 1u64 << current_piece_idx;
 
-                pieces[piece.piece_type() as usize] |= Bitboard(bit);
-                colors[piece.color() as usize] |= Bitboard(bit);
+                piece_bitboards[piece as usize] |= Bitboard(bit);
+                color_bitboards[piece.color() as usize] |= Bitboard(bit);
 
                 current_piece_idx += 1;
             } else if let Some(digit) = char.to_digit(9) {
@@ -100,8 +115,8 @@ impl FromStr for Board {
             .parse::<u16>()
             .map_err(|_| FenParseError::InvalidFullmoves)?;
         Ok(Self {
-            pieces,
-            colors,
+            piece_bitboards,
+            color_bitboards,
             mailbox,
             side_to_move,
             castling_rights,
@@ -236,19 +251,92 @@ impl Board {
 
     /// Get the [Bitboard] of a [PieceType].
     #[inline(always)]
-    pub const fn piece_type_bitboard(&self, piece_type: PieceType) -> Bitboard {
-        self.pieces[piece_type as usize]
+    pub fn piece_type_bitboard(&self, piece_type: PieceType) -> Bitboard {
+        self.piece_bitboards[piece_type as usize]
+        | self.piece_bitboards[piece_type as usize + 6]
     }
 
     /// Get the [Bitboard] of a [Color].
     #[inline(always)]
     pub const fn color_bitboard(&self, color: Color) -> Bitboard {
-        self.colors[color as usize]
+        self.color_bitboards[color as usize]
     }
 
     /// Get the [Bitboard] of a [Piece].
     #[inline(always)]
-    pub fn piece_bitboard(&self, piece: Piece) -> Bitboard {
-        self.piece_type_bitboard(piece.piece_type()) & self.color_bitboard(piece.color())
+    pub const fn piece_bitboard(&self, piece: Piece) -> Bitboard {
+        self.piece_bitboards[piece as usize]
     }
+
+    /// Get the [CastlingRights] of a [Board].
+    #[inline(always)]
+    pub const fn castling_rights(&self) -> CastlingRights {
+        self.castling_rights
+    }
+
+    /// Get the optional en passant [Square] of a [Board].
+    #[inline(always)]
+    pub const fn ep_square(&self) -> Option<Square> {
+        self.ep_square
+    }
+
+    /// Get the halfmove clock of a [Board]
+    #[inline(always)]
+    pub const fn halfmove_clock(&self) -> u16 {
+        self.halfmove_clock
+    }
+
+    /// Get the fullmove clock of a [Board]
+    #[inline(always)]
+    pub const fn fullmove_clock(&self) -> u16 {
+        self.fullmove_clock
+    }
+
+    /// Put a piece on the board
+    #[inline(always)]
+    pub fn put_peice(&mut self, piece: Piece, sq: Square) {
+        let sq_idx = sq as usize;
+        let sq_bb = sq.bitboard();
+
+
+        if let Some(captured) = self.mailbox[sq_idx] {
+            self.piece_bitboards[captured as usize] ^= sq_bb;
+        }
+
+        self.piece_bitboards[piece as usize] |= sq_bb;
+        self.mailbox[sq_idx] = Some(piece)
+    }
+
+    /// Remove a piece
+    #[inline(always)]
+    pub fn remove_piece(&mut self, sq: Square) {
+        if let Some(piece) = self.piece_on(sq) {
+            self.piece_bitboards[piece as usize] ^= sq.bitboard();
+            self.mailbox[sq as usize] = None;
+        }
+    }
+
+    /// Push a move to the board
+    #[inline(always)]
+    pub fn make_move(&mut self, mv: &Move) {
+        let from = mv.from();
+        let to = mv.to();
+        let flag = mv.flag();
+        match flag {
+            MoveFlag::Quiet => {
+                let piece = self.piece_on(from).unwrap();
+                let move_mask = from.bitboard() | to.bitboard();
+
+                // Update bitboards.
+                self.piece_bitboards[piece as usize] ^= move_mask;
+
+                // Update mailbox.
+                self.mailbox.swap(from as usize, to as usize);
+            }
+
+            _ => todo!(),
+        }
+
+    }
+
 }

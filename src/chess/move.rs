@@ -1,4 +1,4 @@
-use core::fmt;
+use std::fmt;
 
 use crate::*;
 
@@ -63,7 +63,17 @@ impl fmt::Display for Move {
 }
 
 impl Move {
-
+    /// Create a new [Move]. Only to be used internally, as flag must be valid.
+    #[inline(always)]
+    pub const fn new(
+        from: Square, 
+        to: Square, 
+        flag: MoveFlag
+    ) -> Self {
+        Self(
+            (to as u16) | (from as u16) << 6 | (flag as u16) << 12
+        )
+    }
 
     /// Unpack the [Move]'s from square.
     #[inline(always)]

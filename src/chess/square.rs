@@ -1,8 +1,8 @@
 use crate::*;
-use core::fmt;
-use core::str::FromStr;
+use std::fmt;
+use std::str::FromStr;
 
-crate::types::helpers::define_enum! {
+crate::chess::helpers::define_enum! {
     /// An enum representing any one square on a board.
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub enum Square {

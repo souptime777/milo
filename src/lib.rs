@@ -1,15 +1,11 @@
-pub mod types;
-
-pub use types::{
+pub mod chess;
+pub use chess::{
+    r#move::*,
+    board::*,
     bitboard::*,
     square::*,
     file::*,
     rank::*,
     piece::*,
     color::*,
-    r#move::*,
 };
-
-pub mod board;
-
-pub use board::*;

@@ -1,6 +1,6 @@
 use crate::*;
 
-crate::types::helpers::define_enum! {
+crate::chess::helpers::define_enum! {
     #[repr(u8)]
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
     /// A chess piece that does not hold the color.
@@ -14,7 +14,7 @@ crate::types::helpers::define_enum! {
     }
 }
 
-crate::types::helpers::enum_char_conv! {
+crate::chess::helpers::enum_char_conv! {
     PieceType, PieceTypeParseError {
         Pawn = 'p',
         Knight = 'n',
@@ -25,7 +25,7 @@ crate::types::helpers::enum_char_conv! {
     }
 }
 
-crate::types::helpers::define_enum! {
+crate::chess::helpers::define_enum! {
     #[repr(u8)]
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
     /// A chess piece that holds the color.
@@ -45,7 +45,7 @@ crate::types::helpers::define_enum! {
     }
 }
 
-crate::types::helpers::enum_char_conv! {
+crate::chess::helpers::enum_char_conv! {
     Piece, PieceParseError {
         WhitePawn = 'P',
         WhiteKnight = 'N',
