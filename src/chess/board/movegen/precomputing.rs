@@ -1,7 +1,74 @@
 use crate::*;
-use rand::{rng, RngExt};
 
-pub fn generate_rook_magics() -> [u64; 64] {
+use rand::{rng, RngExt};
+use std::fs::File;
+use std::io::{self, BufWriter, Write};
+
+struct Magic {
+    mask: Bitboard,
+    magic: u64,
+    shift: u8,
+    table: Vec<Option<Bitboard>>,
+}
+
+pub fn generate_magic_file() -> io::Result<()> {
+    let rook_magics = generate_rook_magics();
+    let bishop_magics = generate_bishop_magics();
+
+    let mut rook_table: Vec<Bitboard> = Vec::new();
+    let mut rook_magic_numbers = [0_u64; 64];
+    let mut rook_offsets = [0_usize; 64];
+    let mut rook_shifts = [0_u8; 64];
+
+    for (i, magic) in rook_magics.into_iter().enumerate() {
+        rook_offsets[i] = rook_table.len();
+        rook_magic_numbers[i] = magic.magic;
+        rook_shifts[i] = magic.shift;
+
+        for attack in magic.table {
+            rook_table.push(match attack {
+                Some(bb) => bb,
+                None => Bitboard::EMPTY,
+            })
+        }
+    }
+
+    let file = File::create("src/chess/board/movegen/generated_rook_table.bin")?;
+    let mut writer = BufWriter::new(file);
+
+
+    for bb in rook_table {
+        writer.write_all(&bb.0.to_le_bytes())?;
+    }
+
+    let mut bishop_table: Vec<Bitboard> = Vec::new();
+    let mut bishop_magic_numbers = [0_u64; 64];
+    let mut bishop_offsets = [0_usize; 64];
+    let mut bishop_shifts = [0_u8; 64];
+
+    for (i, magic) in bishop_magics.into_iter().enumerate() {
+        bishop_offsets[i] = bishop_table.len();
+        bishop_magic_numbers[i] = magic.magic;
+        bishop_shifts[i] = magic.shift;
+
+        for attack in magic.table {
+            bishop_table.push(match attack {
+                Some(bb) => bb,
+                None => Bitboard::EMPTY,
+            })
+        }
+    }
+
+    let file = File::create("src/chess/board/movegen/generated_bishop_table.bin")?;
+    let mut writer = BufWriter::new(file);
+
+    for bb in bishop_table {
+        writer.write_all(&bb.0.to_le_bytes())?;
+    }
+    Ok(())
+}
+
+fn generate_rook_magics() -> [Magic; 64] {
     let rook_data = get_sq_rook_data();
     let mut data_iter = tqdm::tqdm(rook_data.iter());
     
@@ -14,7 +81,7 @@ pub fn generate_rook_magics() -> [u64; 64] {
     })
 }
 
-pub fn generate_bishop_magics() -> [u64; 64] {
+fn generate_bishop_magics() -> [Magic; 64] {
     let bishop_data = get_sq_bishop_data();
     let mut data_iter = tqdm::tqdm(bishop_data.iter());
     
@@ -27,13 +94,14 @@ pub fn generate_bishop_magics() -> [u64; 64] {
     })
 }
 
-fn find_magic(data: &SquareMoveData) -> u64 {
+fn find_magic(data: &SquareMoveData) -> Magic {
     let mut rng = rng();
 
-    let relevant_bits = data.mask.0.count_ones();
+    let relevant_bits = data.mask.0.count_ones() as u8;
     let shift = 64 - relevant_bits;
     let table_size = 1_usize << relevant_bits;
 
+    let mut used: Vec<Option<Bitboard>>;
     loop {
         let magic = rng.random::<u64>() & rng.random::<u64>() & rng.random::<u64>();
 
@@ -42,7 +110,7 @@ fn find_magic(data: &SquareMoveData) -> u64 {
             continue;
         }
 
-        let mut used: Vec<Option<Bitboard>> = vec![None; table_size];
+        used = vec![None; table_size];
         let mut valid = true;
 
         for (&occupancy, &attack) in data.possible_blockers.iter().zip(&data.moves) {
@@ -63,7 +131,7 @@ fn find_magic(data: &SquareMoveData) -> u64 {
         }
         
         if valid {
-            return magic;
+            return Magic { mask: data.mask, magic, shift , table: used};
         }
     }
 }
@@ -85,8 +153,8 @@ fn ray_march_sliders(blockers: Bitboard, sq: Square, dir: (isize, isize)) -> Bit
         bb |= Bitboard(1 << (r * 8 + f));
 
         if !(bb & blockers).is_empty()
-        || f < 1 || f > 6 
-        || r < 1 || r > 6 {
+        || !(1..=6).contains(&f) 
+        || !(1..=6).contains(&r) {
             break;
         }
     }

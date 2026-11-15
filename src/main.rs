@@ -1,5 +1,5 @@
 use milo_core::*;
 
 fn main() {
-    println!("{:?}", generate_rook_magics())
+    let _ = generate_magic_file();
 }
