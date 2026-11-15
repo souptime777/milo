@@ -12,3 +12,5 @@ name = "milo"
 path = "src/main.rs"
 
 [dependencies]
+rand = "0.10.3"
+tqdm = "0.8.1"
