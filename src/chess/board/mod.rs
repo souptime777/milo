@@ -1,10 +1,13 @@
 mod fen;
 mod make_unmake;
 mod castling_rights;
+mod movegen;
 
 use crate::*;
 use std::fmt;
 use castling_rights::CastlingRights;
+
+pub use movegen::*;
 
 
 /// A chess board.

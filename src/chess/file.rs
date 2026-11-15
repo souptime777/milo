@@ -14,23 +14,6 @@ crate::chess::helpers::define_enum! {
     }
 }
 
-impl From<Square> for File {
-    #[inline(always)]
-    fn from(value: Square) -> Self {
-        match value as u64 % 8 {
-            0 => File::A,
-            1 => File::B,
-            2 => File::C,
-            3 => File::D,
-            4 => File::E,
-            5 => File::F,
-            6 => File::G,
-            7 => File::H,
-            _ => unreachable!()
-        }
-    }
-}
-
 impl TryFrom<u64> for File {
     type Error = &'static str;
 

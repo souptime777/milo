@@ -15,23 +15,6 @@ crate::chess::helpers::define_enum! {
     }
 }
 
-impl From<Square> for Rank {
-    #[inline(always)]
-    fn from(value: Square) -> Self {
-        match value as u64 / 8 {
-            0 => Rank::Eighth,
-            1 => Rank::Seventh,
-            2 => Rank::Sixth,
-            3 => Rank::Fifth,
-            4 => Rank::Fourth,
-            5 => Rank::Third,
-            6 => Rank::Second,
-            7 => Rank::First,
-            _ => unreachable!()
-        }
-    }
-}
-
 impl TryFrom<u64> for Rank {
     type Error = &'static str;
 

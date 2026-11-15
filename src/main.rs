@@ -1,26 +1,9 @@
 use milo_core::*;
+use crate::chess::board::ROOK_RELEVANT_OCCUPANCY;
 
 fn main() {
-    let mut board = Board::default();
-    board.make_move(Move::new(
-        Square::B8,
-        Square::F6, 
-        MoveFlag::Quiet));
-    board.make_move(Move::new(
-        Square::C8,
-        Square::C5, 
-        MoveFlag::Quiet));
-    board.make_move(Move::new(
-        Square::D8,
-        Square::D5, 
-        MoveFlag::Quiet));
-    board.make_move(Move::new(
-        Square::E8,
-        Square::C8,
-        MoveFlag::QueenPromo));
-    println!("{}", board);
-    for piece in Piece::ALL {
-        println!("{:?}", piece);
-        println!("{}", board.piece_bitboard(piece))
+    for sq in Square::ALL {
+        println!("{}", sq);
+        println!("{}", ROOK_RELEVANT_OCCUPANCY[sq as usize]);
     }
 }

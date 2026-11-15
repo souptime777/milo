@@ -68,14 +68,34 @@ impl Square {
 
     /// Get the file that the square is on.
     #[inline(always)]
-    pub fn file(self) -> File {
-        File::from(self)
+    pub const fn file(self) -> File {
+        match self as u64 % 8 {
+            0 => File::A,
+            1 => File::B,
+            2 => File::C,
+            3 => File::D,
+            4 => File::E,
+            5 => File::F,
+            6 => File::G,
+            7 => File::H,
+            _ => unreachable!()
+        }
     }
 
     /// Get the rank that the square is on.
     #[inline(always)]
-    pub fn rank(self) -> Rank {
-        Rank::from(self)
+    pub const fn rank(self) -> Rank {
+        match self as u64 / 8 {
+            0 => Rank::Eighth,
+            1 => Rank::Seventh,
+            2 => Rank::Sixth,
+            3 => Rank::Fifth,
+            4 => Rank::Fourth,
+            5 => Rank::Third,
+            6 => Rank::Second,
+            7 => Rank::First,
+            _ => unreachable!()
+        }
     }
 
     /// Get a square from an index. Uses only first 6 bits.

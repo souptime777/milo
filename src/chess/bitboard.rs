@@ -136,16 +136,28 @@ impl Bitboard {
         X X X X X X X X
     );
 
-    /// A [Bitboard] containing all squares not on the edge.
-    pub const INNER: Self = bitboard!(
+    /// A [Bitboard] containing the A and H files.
+    pub const EDGES_FILES: Self = bitboard!(
+        X . . . . . . X
+        X . . . . . . X
+        X . . . . . . X
+        X . . . . . . X
+        X . . . . . . X
+        X . . . . . . X
+        X . . . . . . X
+        X . . . . . . X
+    );
+
+    /// A [Bitboard] containing the First and Eighth ranks.
+    pub const EDGES_RANKS: Self = bitboard!(
+        X X X X X X X X
         . . . . . . . .
-        . X X X X X X .
-        . X X X X X X .
-        . X X X X X X .
-        . X X X X X X .
-        . X X X X X X .
-        . X X X X X X .
         . . . . . . . .
+        . . . . . . . .
+        . . . . . . . .
+        . . . . . . . .
+        . . . . . . . .
+        X X X X X X X X
     );
 
     /// Checks whether the [Bitboard] is empty.
