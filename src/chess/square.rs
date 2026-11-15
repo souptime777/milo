@@ -4,6 +4,7 @@ use std::str::FromStr;
 
 crate::chess::helpers::define_enum! {
     /// An enum representing any one square on a board.
+    #[rustfmt::skip]
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub enum Square {
         A8, B8, C8, D8, E8, F8, G8, H8,
