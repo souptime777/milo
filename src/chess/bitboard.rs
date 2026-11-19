@@ -1,7 +1,7 @@
 use core::ops::*;
 use core::fmt;
 
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default, Hash, Debug)]
 /// A bitboard, represented by [u64].
 /// For more information, see <https://www.chessprogramming.org/Bitboards>
 pub struct Bitboard(

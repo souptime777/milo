@@ -4,67 +4,41 @@ use rand::{rng, RngExt};
 use std::fs::File;
 use std::io::{self, BufWriter, Write};
 
-struct Magic {
-    mask: Bitboard,
-    magic: u64,
-    shift: u8,
-    table: Vec<Option<Bitboard>>,
+#[derive(Debug)]
+pub struct Magic {
+    pub mask: Bitboard,
+    pub magic: u64,
+    pub shift: u8,
+    pub offset: usize,
 }
 
 pub fn generate_magic_file() -> io::Result<()> {
     let rook_magics = generate_rook_magics();
     let bishop_magics = generate_bishop_magics();
 
-    let mut rook_table: Vec<Bitboard> = Vec::new();
-    let mut rook_magic_numbers = [0_u64; 64];
-    let mut rook_offsets = [0_usize; 64];
-    let mut rook_shifts = [0_u8; 64];
-
-    for (i, magic) in rook_magics.into_iter().enumerate() {
-        rook_offsets[i] = rook_table.len();
-        rook_magic_numbers[i] = magic.magic;
-        rook_shifts[i] = magic.shift;
-
-        for attack in magic.table {
-            rook_table.push(match attack {
-                Some(bb) => bb,
-                None => Bitboard::EMPTY,
-            })
-        }
-    }
-
-    let file = File::create("src/chess/board/movegen/generated_rook_table.bin")?;
+    let file = File::create("src/chess/board/movegen/magics.rs")?;
     let mut writer = BufWriter::new(file);
-
-
-    for bb in rook_table {
-        writer.write_all(&bb.0.to_le_bytes())?;
+    
+    let mut table_size: usize = 0;
+    writeln!(writer, "use crate::*;\n")?;
+    writeln!(writer, "pub const ROOK_MAGICS: [Magic; 64] = [")?;
+    for magic in rook_magics {
+        writeln!(writer, "    {:?},", magic)?;
+        table_size += magic.offset;
     }
+    writeln!(writer, "];")?;
+    writeln!(writer, "pub const ROOK_TABLE_SIZE: usize = {};", table_size)?;
 
-    let mut bishop_table: Vec<Bitboard> = Vec::new();
-    let mut bishop_magic_numbers = [0_u64; 64];
-    let mut bishop_offsets = [0_usize; 64];
-    let mut bishop_shifts = [0_u8; 64];
-
-    for (i, magic) in bishop_magics.into_iter().enumerate() {
-        bishop_offsets[i] = bishop_table.len();
-        bishop_magic_numbers[i] = magic.magic;
-        bishop_shifts[i] = magic.shift;
-
-        for attack in magic.table {
-            bishop_table.push(match attack {
-                Some(bb) => bb,
-                None => Bitboard::EMPTY,
-            })
-        }
+    let mut table_size: usize = 0;
+    writeln!(writer)?;
+    writeln!(writer, "pub const BISHOP_MAGICS: [Magic; 64] = [")?;
+    for magic in bishop_magics {
+        writeln!(writer, "    {:?},", magic)?;
+        table_size += magic.offset;
     }
+    writeln!(writer, "];")?;
+    writeln!(writer, "pub const BISHOP_TABLE_SIZE: usize = {};", table_size)?;
 
-    let file = File::create("src/chess/board/movegen/generated_bishop_table.bin")?;
-    let mut writer = BufWriter::new(file);
-
-    for bb in bishop_table {
-        writer.write_all(&bb.0.to_le_bytes())?;
-    }
     Ok(())
 }
 
@@ -101,7 +75,6 @@ fn find_magic(data: &SquareMoveData) -> Magic {
     let shift = 64 - relevant_bits;
     let table_size = 1_usize << relevant_bits;
 
-    let mut used: Vec<Option<Bitboard>>;
     loop {
         let magic = rng.random::<u64>() & rng.random::<u64>() & rng.random::<u64>();
 
@@ -110,7 +83,7 @@ fn find_magic(data: &SquareMoveData) -> Magic {
             continue;
         }
 
-        used = vec![None; table_size];
+        let mut used: Vec<Option<Bitboard>> = vec![None; table_size];
         let mut valid = true;
 
         for (&occupancy, &attack) in data.possible_blockers.iter().zip(&data.moves) {
@@ -131,7 +104,7 @@ fn find_magic(data: &SquareMoveData) -> Magic {
         }
         
         if valid {
-            return Magic { mask: data.mask, magic, shift , table: used};
+            return Magic { mask: data.mask, magic, shift, offset: table_size};
         }
     }
 }
@@ -195,7 +168,7 @@ pub fn get_bishop_sliders_slow(blockers: Bitboard, sq: Square) -> Bitboard {
     bb
 }
 
-fn enumerate_occupancies(mask: Bitboard) -> Vec<Bitboard> {
+pub fn enumerate_occupancies(mask: Bitboard) -> Vec<Bitboard> {
     let mut occupancies = Vec::new();
     let mut subset = 0_u64;
 
@@ -212,11 +185,12 @@ fn enumerate_occupancies(mask: Bitboard) -> Vec<Bitboard> {
     occupancies
 }
 
-struct SquareMoveData {
-    mask: Bitboard,
-    possible_blockers: Vec<Bitboard>,
-    moves: Vec<Bitboard>,
+pub struct SquareMoveData {
+    pub mask: Bitboard,
+    pub possible_blockers: Vec<Bitboard>,
+    pub moves: Vec<Bitboard>,
 }
+
 impl SquareMoveData {
     const EMPTY: Self = Self {
         mask: Bitboard::EMPTY,
@@ -225,7 +199,7 @@ impl SquareMoveData {
     };
 }
 
-fn get_sq_rook_data() -> [SquareMoveData; 64] {
+pub const fn get_sq_rook_data() -> [SquareMoveData; 64] {
     let mut data = [SquareMoveData::EMPTY; 64];
     for (sq_idx, &sq) in Square::ALL.iter().enumerate() {
         let mask = ROOK_RELEVANT_OCCUPANCY[sq_idx];
@@ -245,7 +219,7 @@ fn get_sq_rook_data() -> [SquareMoveData; 64] {
     data
 }
 
-fn get_sq_bishop_data() -> [SquareMoveData; 64] {
+pub const fn get_sq_bishop_data() -> [SquareMoveData; 64] {
     let mut data = [SquareMoveData::EMPTY; 64];
     for (sq_idx, &sq) in Square::ALL.iter().enumerate() {
         let mask = BISHOP_RELEVANT_OCCUPANCY[sq_idx];

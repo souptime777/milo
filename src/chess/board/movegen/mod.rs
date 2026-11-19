@@ -1,13 +1,20 @@
 mod relevant_occupancy;
 mod precomputing;
-mod generated_magics;
+mod magics;
 
 pub use relevant_occupancy::*;
 pub use precomputing::*;
-use generated_magics::*;
+use magics::*;
 
 use crate::*;
 
+static ROOK_TABLE: [Bitboard; ROOK_TABLE_SIZE] = {
+    let mut table = [Bitboard::EMPTY; ROOK_TABLE_SIZE];
+
+    let data = get_sq_rook_data();
+
+    table
+};
 
 impl Board {
     /// Generate rook sliders
