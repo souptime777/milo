@@ -10,3 +10,6 @@ path = "src/lib.rs"
 [[bin]]
 name = "milo"
 path = "src/main.rs"
+
+[dependencies]
+arrayvec = "0.7.8"

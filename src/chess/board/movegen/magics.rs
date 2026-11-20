@@ -7,6 +7,8 @@ const TOTAL_BISHOP_BYTES: usize = BISHOP_TABLE_SIZE * std::mem::size_of::<Bitboa
 
 #[repr(C, align(8))]
 struct AlignedRookLut([u8; TOTAL_ROOK_BYTES]);
+
+#[repr(C, align(8))]
 struct AlignedBishopLut([u8; TOTAL_BISHOP_BYTES]);
 
 #[inline]

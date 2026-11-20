@@ -16,6 +16,9 @@ pub struct Board {
     piece_bitboards: [Bitboard; 12],
     color_bitboards: [Bitboard; 2],
 
+    // Bitboard to hold colors.
+    occupancy: Bitboard,
+
     /*
     An array that holds the same information as the bitboards.
     It is technically redundant information, but is faster to index in some cases

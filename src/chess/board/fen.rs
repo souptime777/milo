@@ -31,6 +31,7 @@ impl FromStr for Board {
 
         let mut piece_bitboards = [Bitboard::EMPTY; 12];
         let mut color_bitboards = [Bitboard::EMPTY; 2];
+        let mut occupancy = Bitboard::EMPTY;
 
         for char in position_field.chars() {
             if let Ok(piece) = Piece::try_from(char) {
@@ -39,6 +40,7 @@ impl FromStr for Board {
 
                 piece_bitboards[piece as usize] |= Bitboard(bit);
                 color_bitboards[piece.color() as usize] |= Bitboard(bit);
+                occupancy |= Bitboard(bit);
 
                 current_piece_idx += 1;
             } else if let Some(digit) = char.to_digit(9) {
@@ -89,6 +91,7 @@ impl FromStr for Board {
         Ok(Self {
             piece_bitboards,
             color_bitboards,
+            occupancy,
             mailbox,
             side_to_move,
             castling_rights,

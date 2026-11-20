@@ -1,7 +1,6 @@
 use milo_core::*;
 
 fn main() {
-    for square in Rank::Fourth.bitboard() {
-        println!("{}", square)
-    }
+    let board = Board::default();
+    println!("{}", board.attackers_to(Square::E4, Color::White))
 }

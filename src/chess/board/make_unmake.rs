@@ -284,5 +284,8 @@ impl Board {
 
         // Increment fullmove clock if black (branchless)
         self.fullmove_clock += (self.side_to_move == Color::Black) as u16;
+
+        // Update occupancy
+        self.occupancy = self.color_bitboards[0] & self.color_bitboards[1];
     }
 }
