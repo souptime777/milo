@@ -1,3 +1,4 @@
+use crate::*;
 use core::fmt;
 use core::ops::*;
 
@@ -69,6 +70,32 @@ impl SubAssign for Bitboard {
     #[inline(always)]
     fn sub_assign(&mut self, rhs: Self) {
         *self = *self - rhs;
+    }
+}
+
+pub struct BitboardIterator(Bitboard);
+
+impl Iterator for BitboardIterator {
+    type Item = Square;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.0.0 == 0 {
+            return None;
+        }
+        let square = self.0.0.trailing_zeros() as u8;
+        self.0.0 &= self.0.0 - 1;
+
+        Some(unsafe { std::mem::transmute(square) })
+    }
+}
+
+impl IntoIterator for Bitboard {
+    type Item = Square;
+    type IntoIter = BitboardIterator;
+
+    fn into_iter(self) -> Self::IntoIter {
+        BitboardIterator(self)
     }
 }
 

@@ -1,8 +1,18 @@
 mod magics;
+mod magic_data;
 
 use crate::*;
 
+pub use magics::*;
+#[derive(Debug)]
+pub struct MoveGenerator {
+    occupancy: Bitboard,
+    piece_bitboards: [Bitboard; 12],
+    color_bitboards: [Bitboard; 2],
+}
+
 impl Board {
-    /// Generate rook sliders
-    pub const fn get_rook_sliders(blockers: Bitboard) {}
+    pub fn generate_moves() -> MoveGenerator {
+        todo!()
+    }
 }

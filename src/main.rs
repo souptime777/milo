@@ -1,3 +1,7 @@
 use milo_core::*;
 
-fn main() {}
+fn main() {
+    for square in Rank::Fourth.bitboard() {
+        println!("{}", square)
+    }
+}

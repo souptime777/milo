@@ -10,6 +10,3 @@ path = "src/lib.rs"
 [[bin]]
 name = "milo"
 path = "src/main.rs"
-
-[dependencies]
-rand = "0.10.4"
