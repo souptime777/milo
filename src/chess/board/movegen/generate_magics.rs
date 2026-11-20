@@ -1,50 +1,16 @@
 use crate::*;
 
-use rand::{rng, RngExt};
-use std::fs::File;
-use std::io::{self, BufWriter, Write};
-
 #[derive(Debug)]
 pub struct Magic {
     pub mask: Bitboard,
     pub magic: u64,
     pub shift: u8,
-    pub offset: usize,
+    pub size: usize,
 }
 
-pub fn generate_magic_file() -> io::Result<()> {
-    let rook_magics = generate_rook_magics();
-    let bishop_magics = generate_bishop_magics();
-
-    let file = File::create("src/chess/board/movegen/magics.rs")?;
-    let mut writer = BufWriter::new(file);
-    
-    let mut table_size: usize = 0;
-    writeln!(writer, "use crate::*;\n")?;
-    writeln!(writer, "pub const ROOK_MAGICS: [Magic; 64] = [")?;
-    for magic in rook_magics {
-        writeln!(writer, "    {:?},", magic)?;
-        table_size += magic.offset;
-    }
-    writeln!(writer, "];")?;
-    writeln!(writer, "pub const ROOK_TABLE_SIZE: usize = {};", table_size)?;
-
-    let mut table_size: usize = 0;
-    writeln!(writer)?;
-    writeln!(writer, "pub const BISHOP_MAGICS: [Magic; 64] = [")?;
-    for magic in bishop_magics {
-        writeln!(writer, "    {:?},", magic)?;
-        table_size += magic.offset;
-    }
-    writeln!(writer, "];")?;
-    writeln!(writer, "pub const BISHOP_TABLE_SIZE: usize = {};", table_size)?;
-
-    Ok(())
-}
-
-fn generate_rook_magics() -> [Magic; 64] {
+pub fn generate_rook_magics() -> [Magic; 64] {
     let rook_data = get_sq_rook_data();
-    let mut data_iter = tqdm::tqdm(rook_data.iter());
+    let mut data_iter = rook_data.iter();
     
     std::array::from_fn(|_| {
         if let Some(data) = data_iter.next() {
@@ -55,9 +21,9 @@ fn generate_rook_magics() -> [Magic; 64] {
     })
 }
 
-fn generate_bishop_magics() -> [Magic; 64] {
+pub fn generate_bishop_magics() -> [Magic; 64] {
     let bishop_data = get_sq_bishop_data();
-    let mut data_iter = tqdm::tqdm(bishop_data.iter());
+    let mut data_iter = bishop_data.iter();
     
     std::array::from_fn(|_| {
         if let Some(data) = data_iter.next() {
@@ -66,17 +32,38 @@ fn generate_bishop_magics() -> [Magic; 64] {
             panic!();
         }
     })
+}
+
+pub struct Rng(u64);
+
+impl Rng {
+    pub fn new() -> Self {
+        Self(0xFFAAB58C5833FE89)
+    }
+
+    /// Returns a random unsigned 64-bit integer.
+    pub fn next_u64(&mut self) -> u64 {
+        let mut number = self.0;
+
+        number ^= number << 13;
+        number ^= number >> 17;
+        number ^= number << 5;
+
+        self.0 = number;
+
+        number
+    }
 }
 
 fn find_magic(data: &SquareMoveData) -> Magic {
-    let mut rng = rng();
+    let mut rng = Rng::new();
 
     let relevant_bits = data.mask.0.count_ones() as u8;
     let shift = 64 - relevant_bits;
     let table_size = 1_usize << relevant_bits;
 
-    loop {
-        let magic = rng.random::<u64>() & rng.random::<u64>() & rng.random::<u64>();
+    for _ in 0..1_000_000 {
+        let magic = rng.next_u64() & rng.next_u64() & rng.next_u64();
 
         // Quality Heuristic
         if (data.mask.0.wrapping_mul(magic) & 0xFF00_0000_0000_0000).count_ones() < 6 {
@@ -99,14 +86,16 @@ fn find_magic(data: &SquareMoveData) -> Magic {
                 }
                 None => {
                     used[idx] = Some(attack);
-                }
+                } 
             }
         }
         
         if valid {
-            return Magic { mask: data.mask, magic, shift, offset: table_size};
+            return Magic { mask: data.mask, magic, shift, size: table_size};
         }
     }
+
+    panic!("Failed to find magic!")
 }
 
 fn ray_march_sliders(blockers: Bitboard, sq: Square, dir: (isize, isize)) -> Bitboard {
@@ -199,7 +188,7 @@ impl SquareMoveData {
     };
 }
 
-pub const fn get_sq_rook_data() -> [SquareMoveData; 64] {
+pub fn get_sq_rook_data() -> [SquareMoveData; 64] {
     let mut data = [SquareMoveData::EMPTY; 64];
     for (sq_idx, &sq) in Square::ALL.iter().enumerate() {
         let mask = ROOK_RELEVANT_OCCUPANCY[sq_idx];
@@ -219,7 +208,7 @@ pub const fn get_sq_rook_data() -> [SquareMoveData; 64] {
     data
 }
 
-pub const fn get_sq_bishop_data() -> [SquareMoveData; 64] {
+pub fn get_sq_bishop_data() -> [SquareMoveData; 64] {
     let mut data = [SquareMoveData::EMPTY; 64];
     for (sq_idx, &sq) in Square::ALL.iter().enumerate() {
         let mask = BISHOP_RELEVANT_OCCUPANCY[sq_idx];

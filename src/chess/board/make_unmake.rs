@@ -270,9 +270,8 @@ impl Board {
         // Update misc data
         self.side_to_move = !self.side_to_move;
         
-        if self.side_to_move == Color::White {
-            self.fullmove_clock += 1;
-        }
+        // Increment fullmove clock if black (branchless)
+        self.fullmove_clock += (self.side_to_move == Color::Black) as u16;
 
     }
 
