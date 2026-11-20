@@ -1,5 +1,3 @@
 use milo_core::*;
 
-fn main() {
-    
-}
+fn main() {}

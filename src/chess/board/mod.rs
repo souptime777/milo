@@ -1,14 +1,13 @@
+mod castling_rights;
 mod fen;
 mod make_unmake;
-mod castling_rights;
 mod movegen;
 
 use crate::*;
-use std::fmt;
 use castling_rights::CastlingRights;
+use std::fmt;
 
 pub use movegen::*;
-
 
 /// A chess board.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -17,7 +16,7 @@ pub struct Board {
     piece_bitboards: [Bitboard; 12],
     color_bitboards: [Bitboard; 2],
 
-    /* 
+    /*
     An array that holds the same information as the bitboards.
     It is technically redundant information, but is faster to index in some cases
     */
@@ -44,20 +43,19 @@ pub struct Board {
 
 impl fmt::Display for Board {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for (sq, piece) in self.mailbox.iter().enumerate() { 
-
+        for (sq, piece) in self.mailbox.iter().enumerate() {
             // Newline every 8 squares
             if sq != 0 && sq % 8 == 0 {
                 writeln!(f)?;
             }
-            
+
             // Print piece
             let char = if let Some(piece) = piece {
                 char::from(*piece)
             } else {
                 '·'
             };
-            
+
             write!(f, "{} ", char)?;
         }
 
@@ -67,12 +65,13 @@ impl fmt::Display for Board {
 
 impl Default for Board {
     fn default() -> Self {
-        "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1".parse::<Self>().unwrap()
+        "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+            .parse::<Self>()
+            .unwrap()
     }
 }
 
 impl Board {
-    
     /// Get the [Piece] on a [Square].
     #[inline(always)]
     pub const fn piece_on(&self, sq: Square) -> Option<Piece> {
@@ -82,8 +81,7 @@ impl Board {
     /// Get the [Bitboard] of a [PieceType].
     #[inline(always)]
     pub fn piece_type_bitboard(&self, piece_type: PieceType) -> Bitboard {
-        self.piece_bitboards[piece_type as usize]
-        | self.piece_bitboards[piece_type as usize + 6]
+        self.piece_bitboards[piece_type as usize] | self.piece_bitboards[piece_type as usize + 6]
     }
 
     /// Get the [Bitboard] of a [Color].
@@ -121,12 +119,14 @@ impl Board {
     pub const fn fullmove_clock(&self) -> u16 {
         self.fullmove_clock
     }
-    
+
     /// Get the square of a the king
     pub const fn king_square(&self, color: Color) -> Square {
         unsafe {
             std::mem::transmute(
-                self.piece_bitboards[color as usize * 6 + 5].0.trailing_zeros() as u8,
+                self.piece_bitboards[color as usize * 6 + 5]
+                    .0
+                    .trailing_zeros() as u8,
             )
         }
     }
@@ -136,7 +136,6 @@ impl Board {
     pub fn put_peice(&mut self, piece: Piece, sq: Square) {
         let sq_idx = sq as usize;
         let sq_bb = sq.bitboard();
-
 
         if let Some(captured) = self.mailbox[sq_idx] {
             self.piece_bitboards[captured as usize] ^= sq_bb;
@@ -159,5 +158,4 @@ impl Board {
             self.mailbox[sq as usize] = None;
         }
     }
-
 }

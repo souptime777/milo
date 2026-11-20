@@ -3,7 +3,7 @@ use std::fmt;
 use crate::*;
 
 /// A chess move.
-/// 
+///
 /// Note that it is only valid for one board at one time.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
@@ -60,7 +60,7 @@ impl fmt::Display for Move {
         if self.is_promotion() {
             write!(f, "{}", self.promotion_piece())?;
         }
-        
+
         Ok(())
     }
 }
@@ -68,14 +68,8 @@ impl fmt::Display for Move {
 impl Move {
     /// Create a new [Move]. Only to be used internally, as flag must be valid.
     #[inline(always)]
-    pub const fn new(
-        from: Square, 
-        to: Square, 
-        flag: MoveFlag
-    ) -> Self {
-        Self(
-            (to as u16) | (from as u16) << 6 | (flag as u16) << 12
-        )
+    pub const fn new(from: Square, to: Square, flag: MoveFlag) -> Self {
+        Self((to as u16) | (from as u16) << 6 | (flag as u16) << 12)
     }
 
     /// Unpack the [Move]'s from square.
@@ -93,13 +87,13 @@ impl Move {
     /// Unpack the [Move]'s flag.
     #[inline(always)]
     pub const fn flag(self) -> MoveFlag {
-        unsafe {std::mem::transmute((self.0 >> 12) as u8)}
+        unsafe { std::mem::transmute((self.0 >> 12) as u8) }
     }
 
     /// Return whether the [Move] is a capture.
     #[inline(always)]
     pub const fn is_capture(self) -> bool {
-        (self.0 & (1 << 14)) != 0 
+        (self.0 & (1 << 14)) != 0
     }
 
     /// Return whether the [Move] is a promotion.
@@ -108,7 +102,7 @@ impl Move {
         (self.0 & (1 << 15)) != 0
     }
     /// Return the [Move]'s promotion piece.
-    /// 
+    ///
     /// If the [Move] is not a promotion, it will return a garbage value.
     #[inline(always)]
     pub const fn promotion_piece(self) -> PieceType {

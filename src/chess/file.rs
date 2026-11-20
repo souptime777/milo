@@ -49,15 +49,11 @@ impl File {
     #[inline(always)]
     /// Get a bitboard with all squares on this file.
     pub const fn bitboard(self) -> Bitboard {
-        Bitboard(u64::from_ne_bytes([
-            0b00000001,
-            0b00000001,
-            0b00000001,
-            0b00000001,
-            0b00000001,
-            0b00000001,
-            0b00000001,
-            0b00000001,
-        ]) << self as u8)
+        Bitboard(
+            u64::from_ne_bytes([
+                0b00000001, 0b00000001, 0b00000001, 0b00000001, 0b00000001, 0b00000001, 0b00000001,
+                0b00000001,
+            ]) << self as u8,
+        )
     }
 }

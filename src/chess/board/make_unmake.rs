@@ -1,16 +1,14 @@
 use crate::*;
 
 impl Board {
-
     #[inline(always)]
     fn quiet_promotion_helper(
-        &mut self, 
-        promo_piece: Piece, 
+        &mut self,
+        promo_piece: Piece,
         moved_piece: Piece,
         from: Square,
         to: Square,
     ) {
-        
         // Pick up pawn
         self.piece_bitboards[moved_piece as usize] ^= from.bitboard();
         self.color_bitboards[moved_piece.color() as usize] ^= from.bitboard();
@@ -36,7 +34,9 @@ impl Board {
         from: Square,
         to: Square,
     ) {
-        let captured_piece = self.piece_on(to).expect("Move is capture promo but to square is empty.");
+        let captured_piece = self
+            .piece_on(to)
+            .expect("Move is capture promo but to square is empty.");
         let to_bb = to.bitboard();
 
         // Remove captured piece
@@ -55,12 +55,13 @@ impl Board {
         let from = mv.from();
         let to = mv.to();
         let flag = mv.flag();
-        let moved_piece = self.piece_on(from).expect("No piece on move's from square.");
+        let moved_piece = self
+            .piece_on(from)
+            .expect("No piece on move's from square.");
         let move_mask = from.bitboard() | to.bitboard();
-        
+
         match flag {
             MoveFlag::Quiet => {
-
                 // Update bitboards.
                 self.piece_bitboards[moved_piece as usize] ^= move_mask;
                 self.color_bitboards[moved_piece.color() as usize] ^= move_mask;
@@ -84,7 +85,6 @@ impl Board {
             }
 
             MoveFlag::DoublePawn => {
-
                 // Update bitboards.
                 self.piece_bitboards[moved_piece as usize] ^= move_mask;
                 self.color_bitboards[moved_piece.color() as usize] ^= move_mask;
@@ -93,12 +93,10 @@ impl Board {
                 self.mailbox.swap(from as usize, to as usize);
 
                 // Update ep square
-                self.ep_square = Some(
-                    match self.side_to_move {
-                        Color::White => Square::new(to.file(), Rank::Third),
-                        Color::Black => Square::new(to.file(), Rank::Sixth)
-                    }
-                );
+                self.ep_square = Some(match self.side_to_move {
+                    Color::White => Square::new(to.file(), Rank::Third),
+                    Color::Black => Square::new(to.file(), Rank::Sixth),
+                });
 
                 self.ep_pawn_square = Some(to);
 
@@ -118,8 +116,9 @@ impl Board {
                 // Update rook bitboard.
                 let from_n = from.bitboard().0;
                 let rook_mask = Bitboard(from_n << 1 | from_n << 3);
-                self.piece_bitboards[Piece::new(PieceType::Rook, self.side_to_move) as usize] ^= rook_mask;
-                self.color_bitboards[self.side_to_move as usize]  ^= rook_mask;
+                self.piece_bitboards[Piece::new(PieceType::Rook, self.side_to_move) as usize] ^=
+                    rook_mask;
+                self.color_bitboards[self.side_to_move as usize] ^= rook_mask;
 
                 // Update mailbox.
                 let from_idx = from as usize;
@@ -135,7 +134,6 @@ impl Board {
 
                 // Update halfmove clock
                 self.halfmove_clock += 1;
-                
             }
 
             MoveFlag::QueenCastle => {
@@ -146,8 +144,9 @@ impl Board {
                 // Update rook bitboard.
                 let from_n = from.bitboard().0;
                 let rook_mask = Bitboard(from_n >> 1 | from_n >> 4);
-                self.piece_bitboards[Piece::new(PieceType::Rook, self.side_to_move) as usize] ^= rook_mask;
-                self.color_bitboards[self.side_to_move as usize]  ^= rook_mask;
+                self.piece_bitboards[Piece::new(PieceType::Rook, self.side_to_move) as usize] ^=
+                    rook_mask;
+                self.color_bitboards[self.side_to_move as usize] ^= rook_mask;
 
                 // Update mailbox.
                 let from_idx = from as usize;
@@ -166,15 +165,17 @@ impl Board {
             }
 
             MoveFlag::Capture => {
-                let captured_piece = self.piece_on(to).expect("Move is capture but to square is empty.");
+                let captured_piece = self
+                    .piece_on(to)
+                    .expect("Move is capture but to square is empty.");
                 let to_bb = to.bitboard();
-                
+
                 // Update bitboards
                 self.piece_bitboards[moved_piece as usize] ^= move_mask;
                 self.color_bitboards[moved_piece.color() as usize] ^= move_mask;
                 self.piece_bitboards[captured_piece as usize] ^= to_bb;
                 self.color_bitboards[captured_piece.color() as usize] ^= to_bb;
-                
+
                 // Update mailbox
                 self.mailbox[from as usize] = None;
                 self.mailbox[to as usize] = Some(moved_piece);
@@ -191,14 +192,17 @@ impl Board {
             }
 
             MoveFlag::EnPassant => {
-                let ep_pawn_square = self.ep_pawn_square.expect("Move is en passant, but ep_square is none");
+                let ep_pawn_square = self
+                    .ep_pawn_square
+                    .expect("Move is en passant, but ep_square is none");
                 // Move piece
                 self.piece_bitboards[moved_piece as usize] ^= move_mask;
                 self.color_bitboards[moved_piece.color() as usize] ^= move_mask;
                 self.mailbox.swap(from as usize, to as usize);
 
                 // Remove Pawn
-                self.piece_bitboards[(!self.side_to_move) as usize * 6] ^= ep_pawn_square.bitboard();
+                self.piece_bitboards[(!self.side_to_move) as usize * 6] ^=
+                    ep_pawn_square.bitboard();
                 self.color_bitboards[(!self.side_to_move) as usize] ^= ep_pawn_square.bitboard();
                 self.mailbox[ep_pawn_square as usize] = None;
 
@@ -211,68 +215,74 @@ impl Board {
             }
 
             MoveFlag::KnightPromo => self.quiet_promotion_helper(
-                Piece::new(PieceType::Knight, self.side_to_move), 
-                moved_piece, 
-                from, 
-                to),
+                Piece::new(PieceType::Knight, self.side_to_move),
+                moved_piece,
+                from,
+                to,
+            ),
 
             MoveFlag::BishopPromo => self.quiet_promotion_helper(
-                Piece::new(PieceType::Bishop, self.side_to_move), 
-                moved_piece, 
-                from, 
-                to),
+                Piece::new(PieceType::Bishop, self.side_to_move),
+                moved_piece,
+                from,
+                to,
+            ),
 
             MoveFlag::RookPromo => self.quiet_promotion_helper(
-                Piece::new(PieceType::Rook, self.side_to_move), 
-                moved_piece, 
-                from, 
-                to),
+                Piece::new(PieceType::Rook, self.side_to_move),
+                moved_piece,
+                from,
+                to,
+            ),
 
             MoveFlag::QueenPromo => self.quiet_promotion_helper(
-                Piece::new(PieceType::Queen, self.side_to_move), 
-                moved_piece, 
-                from, 
-                to),
-            
+                Piece::new(PieceType::Queen, self.side_to_move),
+                moved_piece,
+                from,
+                to,
+            ),
+
             MoveFlag::KnightPromoCapture => {
                 self.capture_promotion_helper(
-                    Piece::new(PieceType::Knight, self.side_to_move), 
-                    moved_piece, 
-                    from, 
-                    to);
+                    Piece::new(PieceType::Knight, self.side_to_move),
+                    moved_piece,
+                    from,
+                    to,
+                );
             }
 
             MoveFlag::BishopPromoCapture => {
                 self.capture_promotion_helper(
-                    Piece::new(PieceType::Bishop, self.side_to_move), 
-                    moved_piece, 
-                    from, 
-                    to);
+                    Piece::new(PieceType::Bishop, self.side_to_move),
+                    moved_piece,
+                    from,
+                    to,
+                );
             }
 
             MoveFlag::RookPromoCapture => {
                 self.capture_promotion_helper(
-                    Piece::new(PieceType::Rook, self.side_to_move), 
-                    moved_piece, 
-                    from, 
-                    to);
+                    Piece::new(PieceType::Rook, self.side_to_move),
+                    moved_piece,
+                    from,
+                    to,
+                );
             }
 
             MoveFlag::QueenPromoCapture => {
                 self.capture_promotion_helper(
-                    Piece::new(PieceType::Queen, self.side_to_move), 
-                    moved_piece, 
-                    from, 
-                    to);
+                    Piece::new(PieceType::Queen, self.side_to_move),
+                    moved_piece,
+                    from,
+                    to,
+                );
             }
         }
 
         // Update misc data
         self.side_to_move = !self.side_to_move;
-        
+
         // Increment fullmove clock if black (branchless)
         self.fullmove_clock += (self.side_to_move == Color::Black) as u16;
-
     }
-
 }

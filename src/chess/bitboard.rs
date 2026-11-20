@@ -1,12 +1,13 @@
-use core::ops::*;
 use core::fmt;
+use core::ops::*;
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default, Hash, Debug)]
+#[repr(transparent)]
 /// A bitboard, represented by [u64].
 /// For more information, see <https://www.chessprogramming.org/Bitboards>
 pub struct Bitboard(
     /// The inner bit representation.
-    pub u64
+    pub u64,
 );
 
 macro_rules! impl_bitwise_ops {
@@ -65,7 +66,6 @@ impl Sub for Bitboard {
 }
 
 impl SubAssign for Bitboard {
-    
     #[inline(always)]
     fn sub_assign(&mut self, rhs: Self) {
         *self = *self - rhs;
@@ -77,16 +77,19 @@ impl fmt::Display for Bitboard {
         const OCCUPIED_STR: &str = "X ";
         const UNOCCUPIED_STR: &str = ". ";
 
-        for bit_idx in 0..64 { 
-
+        for bit_idx in 0..64 {
             // Newline every 8 bits
             if bit_idx % 8 == 0 && bit_idx != 0 {
                 writeln!(f)?;
             }
-            
+
             // Print bit
             let bit = (self.0 >> bit_idx) & 1;
-            f.write_str(if bit == 1 {OCCUPIED_STR} else {UNOCCUPIED_STR})?;
+            f.write_str(if bit == 1 {
+                OCCUPIED_STR
+            } else {
+                UNOCCUPIED_STR
+            })?;
         }
 
         Ok(())
@@ -161,10 +164,10 @@ impl Bitboard {
     );
 
     /// Checks whether the [Bitboard] is empty.
-    /// 
+    ///
     /// # Examples
-    /// 
-    /// ``` 
+    ///
+    /// ```
     /// # use milo_core::Bitboard;
     /// let bb = Bitboard::EMPTY;
     /// assert!(bb.is_empty());
@@ -175,10 +178,10 @@ impl Bitboard {
     }
 
     /// Checks whether the [Bitboard] is full.
-    /// 
+    ///
     /// # Examples
-    /// 
-    /// ``` 
+    ///
+    /// ```
     /// # use milo_core::Bitboard;
     /// let bb = Bitboard::FULL;
     /// assert!(bb.is_full());
@@ -187,11 +190,7 @@ impl Bitboard {
     pub const fn is_full(&self) -> bool {
         self.0 == !0
     }
-
-
 }
-
-
 
 #[macro_export]
 macro_rules! bitboard {
@@ -246,4 +245,4 @@ macro_rules! bitboard {
         compile_error!("Expected 64 squares")
     };
 }
-pub use bitboard as bitboard;
+pub use bitboard;

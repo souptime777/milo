@@ -2,7 +2,6 @@ use crate::{chess::board::castling_rights::CastlingRights, *};
 
 use std::str::FromStr;
 
-
 #[derive(Debug)]
 pub enum FenParseError {
     InvalidPosition,
@@ -60,18 +59,20 @@ impl FromStr for Board {
 
         let ep_square = match ep_square_field {
             "-" => None,
-            _=> {
-                Some(ep_square_field
+            _ => Some(
+                ep_square_field
                     .parse::<Square>()
-                    .map_err(|_| FenParseError::InvalidEpSquare)?)
-            }   
+                    .map_err(|_| FenParseError::InvalidEpSquare)?,
+            ),
         };
-        
+
         let ep_pawn_square = if let Some(sq) = ep_square {
             Some(match sq.rank() {
                 Rank::Sixth => Square::new(sq.file(), Rank::Fifth),
                 Rank::Third => Square::new(sq.file(), Rank::Fourth),
-                _ => { return Err(FenParseError::InvalidEpSquare); }
+                _ => {
+                    return Err(FenParseError::InvalidEpSquare);
+                }
             })
         } else {
             None
@@ -107,14 +108,14 @@ impl Board {
         fen.parse::<Self>()
     }
     /// Create a fen string from the board.
-    /// 
+    ///
     /// # Examples
     /// ```
     /// use milo_core::Board;
-    /// 
+    ///
     /// let initial_fen = "K7/Q1R2R2/2R2R2/8/1P4P1/1kP2P2/3PP3/7Q w - - 0 1";
     /// let board = Board::from_fen(initial_fen).unwrap();
-    /// 
+    ///
     /// assert_eq!(board.to_fen(), initial_fen);
     /// ```
     #[inline(always)]
@@ -128,8 +129,9 @@ impl Board {
 
                 if let Some(piece) = self.piece_on(square) {
                     if consecutive_empty_squares != 0 {
-                        fen.push(char::from_digit(consecutive_empty_squares, 10)
-                            .expect("Invalid digit"));
+                        fen.push(
+                            char::from_digit(consecutive_empty_squares, 10).expect("Invalid digit"),
+                        );
                         consecutive_empty_squares = 0;
                     }
 
@@ -137,16 +139,13 @@ impl Board {
                 } else {
                     consecutive_empty_squares += 1;
                 }
-                
             }
 
             if consecutive_empty_squares != 0 {
-                fen.push(char::from_digit(consecutive_empty_squares, 10)
-                    .expect("Invalid digit"));
+                fen.push(char::from_digit(consecutive_empty_squares, 10).expect("Invalid digit"));
             }
 
             if rank != Rank::First {
-
                 fen.push('/');
             }
         }
@@ -157,22 +156,31 @@ impl Board {
 
         // Castling rights
         if self.castling_rights.white_kingside()
-        || self.castling_rights.white_queenside()
-        || self.castling_rights.black_kingside()
-        || self.castling_rights.black_queenside() {
-            if self.castling_rights.white_kingside() { fen.push('K') }
-            if self.castling_rights.white_queenside() { fen.push('Q') }
-            if self.castling_rights.black_kingside() { fen.push('k') }
-            if self.castling_rights.black_queenside() { fen.push('q') }
+            || self.castling_rights.white_queenside()
+            || self.castling_rights.black_kingside()
+            || self.castling_rights.black_queenside()
+        {
+            if self.castling_rights.white_kingside() {
+                fen.push('K')
+            }
+            if self.castling_rights.white_queenside() {
+                fen.push('Q')
+            }
+            if self.castling_rights.black_kingside() {
+                fen.push('k')
+            }
+            if self.castling_rights.black_queenside() {
+                fen.push('q')
+            }
         } else {
             fen.push('-')
         }
 
         fen.push(' '); // Space separator
 
-        let ep_square  = match self.ep_square{
+        let ep_square = match self.ep_square {
             Some(square) => &square.to_string(),
-            None => "-"
+            None => "-",
         };
 
         fen.push_str(ep_square); // En passant square

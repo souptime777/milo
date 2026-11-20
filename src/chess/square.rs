@@ -36,18 +36,12 @@ impl FromStr for Square {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut chars = s.chars();
-        
-        let file = File::try_from(
-            chars
-            .next()
-            .ok_or(SquareParseError::MissingChar)?
-        ).map_err(|_| SquareParseError::InvalidFile)?;
 
-        let rank = Rank::try_from(
-            chars
-            .next()
-            .ok_or(SquareParseError::MissingChar)?
-        ).map_err(|_| SquareParseError::InvalidRank)?;
+        let file = File::try_from(chars.next().ok_or(SquareParseError::MissingChar)?)
+            .map_err(|_| SquareParseError::InvalidFile)?;
+
+        let rank = Rank::try_from(chars.next().ok_or(SquareParseError::MissingChar)?)
+            .map_err(|_| SquareParseError::InvalidRank)?;
 
         Ok(Self::new(file, rank))
     }
@@ -78,7 +72,7 @@ impl Square {
             5 => File::F,
             6 => File::G,
             7 => File::H,
-            _ => unreachable!()
+            _ => unreachable!(),
         }
     }
 
@@ -94,7 +88,7 @@ impl Square {
             5 => Rank::Third,
             6 => Rank::Second,
             7 => Rank::First,
-            _ => unreachable!()
+            _ => unreachable!(),
         }
     }
 
