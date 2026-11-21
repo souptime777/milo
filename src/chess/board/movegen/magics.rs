@@ -236,7 +236,7 @@ pub fn get_rook_attacks(sq: Square, occupancy: Bitboard) -> Bitboard{
     let blockers = occupancy.0 & ROOK_RELEVANT_OCCUPANCY[idx].0;
     let magic = ROOK_MAGICS[idx];
 
-    let table_idx = ((blockers.wrapping_mul(magic.magic)) >> magic.shift) as usize + magic.offset as usize;
+    let table_idx = ((blockers.wrapping_mul(magic.magic)) >> magic.shift) as usize + magic.offset;
 
     unsafe {*rook_lookup_table().get_unchecked(table_idx)}
 }
@@ -247,7 +247,7 @@ pub fn get_bishop_attacks(sq: Square, occupancy: Bitboard) -> Bitboard{
     let blockers = occupancy.0 & BISHOP_RELEVANT_OCCUPANCY[idx].0;
     let magic = BISHOP_MAGICS[idx];
 
-    let table_idx = ((blockers.wrapping_mul(magic.magic)) >> magic.shift) as usize + magic.offset as usize;
+    let table_idx = ((blockers.wrapping_mul(magic.magic)) >> magic.shift) as usize + magic.offset;
 
     unsafe {*bishop_lookup_table().get_unchecked(table_idx)}
 }
@@ -258,7 +258,7 @@ pub const fn get_rook_attacks_const(sq: Square, occupancy: Bitboard) -> Bitboard
     let blockers = occupancy.0 & ROOK_RELEVANT_OCCUPANCY[idx].0;
     let magic = ROOK_MAGICS[idx];
 
-    let table_idx = ((blockers.wrapping_mul(magic.magic)) >> magic.shift) as usize + magic.offset as usize;
+    let table_idx = ((blockers.wrapping_mul(magic.magic)) >> magic.shift) as usize + magic.offset;
 
     rook_lookup_table()[table_idx]
 }
@@ -269,7 +269,7 @@ pub const fn get_bishop_attacks_const(sq: Square, occupancy: Bitboard) -> Bitboa
     let blockers = occupancy.0 & BISHOP_RELEVANT_OCCUPANCY[idx].0;
     let magic = BISHOP_MAGICS[idx];
 
-    let table_idx = ((blockers.wrapping_mul(magic.magic)) >> magic.shift) as usize + magic.offset as usize;
+    let table_idx = ((blockers.wrapping_mul(magic.magic)) >> magic.shift) as usize + magic.offset;
 
     bishop_lookup_table()[table_idx]
 }
@@ -314,7 +314,7 @@ pub const fn get_between_rays(from: Square, to: Square) -> Bitboard {
         }
         between
     }
-    const TABLE: [[Bitboard; 64]; 64] = {
+    static TABLE: [[Bitboard; 64]; 64] = {
         let mut table = [[Bitboard::EMPTY; 64]; 64];
         let mut i = 0;
         while i < table.len() {
@@ -377,7 +377,7 @@ pub const fn get_line_rays(from: Square, to: Square) -> Bitboard {
         }
         Bitboard::EMPTY
     }
-    const TABLE: [[Bitboard; 64]; 64] = {
+    static TABLE: [[Bitboard; 64]; 64] = {
         let mut table = [[Bitboard::EMPTY; 64]; 64];
         let mut i = 0;
         while i < table.len() {

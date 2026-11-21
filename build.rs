@@ -27,7 +27,7 @@ fn main() {
 
         for blockers in enumerate_occupancies(rook_mask) {
             let idx = ((blockers.wrapping_mul(rook_magic.magic)) >> rook_magic.shift) as usize
-                + rook_magic.offset as usize;
+                + rook_magic.offset;
             rook_table[idx] = get_rook_attacks_slow(blockers, sq);
         }
 
@@ -37,7 +37,7 @@ fn main() {
 
         for blockers in enumerate_occupancies(bishop_mask) {
             let idx = ((blockers.wrapping_mul(bishop_magic.magic)) >> bishop_magic.shift) as usize
-                + bishop_magic.offset as usize;
+                + bishop_magic.offset;
             bishop_table[idx] = get_bishop_attacks_slow(blockers, sq);
         }
     }

@@ -2,7 +2,7 @@ mod magics;
 mod magic_data;
 mod movelist;
 
-use crate::{chess::board::ZobristState, *};
+use crate::*;
 
 pub use movelist::*;
 pub use magics::*;
@@ -41,7 +41,7 @@ impl<'a> MoveGenerator<'a> {
         let board = self.board;
         let move_list = MoveList::new();
 
-        let in_check = !board.checkers.is_empty();
+        let _in_check = !board.checkers.is_empty();
         
         move_list
     }

@@ -1,4 +1,4 @@
-use crate::{chess::square, *};
+use crate::*;
 
 const WHITE_KINGSIDE: u8 = 0b0001;
 const WHITE_QUEENSIDE: u8 = 0b0010;
