@@ -1,4 +1,4 @@
-use crate::{chess::board::castling_rights::CastlingRights, *};
+use crate::*;
 
 use std::str::FromStr;
 

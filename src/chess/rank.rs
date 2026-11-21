@@ -52,4 +52,13 @@ impl Rank {
     pub const fn bitboard(self) -> Bitboard {
         Bitboard(0b11111111 << (self as u8 * 8))
     }
+
+    /// Get the rank from the perspective of a color.
+    /// 
+    /// By default, it is in perpective of white.
+    #[inline(always)]
+    pub const fn from_perspective(self, color: Color) -> Self {
+        unsafe { std::mem::transmute( self as u8 ^ (color as u8 * 7) ) }
+    }
 }
+

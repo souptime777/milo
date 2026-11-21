@@ -1,6 +1,7 @@
 use milo_core::*;
 
 fn main() {
-    let board = Board::default();
-    println!("{}", board.attackers_to(Square::E4, Color::White))
+    let rank = Rank::Eighth;
+    println!("{}", rank.from_perspective(Color::Black));
+    
 }

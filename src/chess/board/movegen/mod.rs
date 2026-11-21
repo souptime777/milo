@@ -4,8 +4,8 @@ mod movelist;
 
 use crate::*;
 
-use movelist::*;
-use magics::*;
+pub use movelist::*;
+pub use magics::*;
 
 
 #[derive(Debug)]
@@ -16,8 +16,8 @@ pub struct MoveGenerator {
 }
 
 impl MoveGenerator {
-    pub fn generate_captures() {
-        
+    pub fn generate_captures() -> MoveList {
+        MoveList::new()
     }
 }
 
