@@ -146,7 +146,7 @@ static RAW_BISHOP_LUT: AlignedBishopLut = AlignedBishopLut(*include_bytes!(conca
 )));
 
 #[inline(always)]
-pub fn rook_lookup_table() -> &'static [Bitboard; ROOK_TABLE_SIZE] {
+pub const fn rook_lookup_table() -> &'static [Bitboard; ROOK_TABLE_SIZE] {
 
     // Compile time checks
     const _: () = assert!(std::mem::size_of::<Bitboard>() == 8);
@@ -156,7 +156,7 @@ pub fn rook_lookup_table() -> &'static [Bitboard; ROOK_TABLE_SIZE] {
 }
 
 #[inline(always)]
-pub fn bishop_lookup_table() -> &'static [Bitboard; BISHOP_TABLE_SIZE] {
+pub const fn bishop_lookup_table() -> &'static [Bitboard; BISHOP_TABLE_SIZE] {
 
     // Compile time checks
     const _: () = assert!(std::mem::size_of::<Bitboard>() == 8);
@@ -253,6 +253,28 @@ pub fn get_bishop_attacks(sq: Square, occupancy: Bitboard) -> Bitboard{
 }
 
 #[inline(always)]
+pub const fn get_rook_attacks_const(sq: Square, occupancy: Bitboard) -> Bitboard{
+    let idx = sq as usize;
+    let blockers = occupancy.0 & ROOK_RELEVANT_OCCUPANCY[idx].0;
+    let magic = ROOK_MAGICS[idx];
+
+    let table_idx = ((blockers.wrapping_mul(magic.magic)) >> magic.shift) as usize + magic.offset as usize;
+
+    rook_lookup_table()[table_idx]
+}
+
+#[inline(always)]
+pub const fn get_bishop_attacks_const(sq: Square, occupancy: Bitboard) -> Bitboard{
+    let idx = sq as usize;
+    let blockers = occupancy.0 & BISHOP_RELEVANT_OCCUPANCY[idx].0;
+    let magic = BISHOP_MAGICS[idx];
+
+    let table_idx = ((blockers.wrapping_mul(magic.magic)) >> magic.shift) as usize + magic.offset as usize;
+
+    bishop_lookup_table()[table_idx]
+}
+
+#[inline(always)]
 pub fn get_queen_attacks(sq: Square, occupancy: Bitboard) -> Bitboard {
     get_rook_attacks(sq, occupancy) | get_bishop_attacks(sq, occupancy)
 }
@@ -270,4 +292,106 @@ pub fn get_king_attacks(sq: Square) -> Bitboard {
 #[inline(always)]
 pub fn get_pawn_attacks(sq: Square, color: Color) -> Bitboard {
     PAWN_ATTACKS[color as usize][sq as usize]
+}
+
+#[inline(always)]
+pub const fn get_between_rays(from: Square, to: Square) -> Bitboard {
+    const fn get_between_rays(from: Square, to: Square) -> Bitboard {
+        let dx = to.file() as i8 - from.file() as i8;
+        let dy = to.rank() as i8 - from.rank() as i8;
+        let orthogonal = dx == 0 || dy == 0;
+        let diagonal = dx.abs() == dy.abs();
+        if !(orthogonal || diagonal) {
+            return Bitboard::EMPTY;
+        }
+        let dx = dx.signum();
+        let dy = dy.signum();
+        let mut square = from.offset(dx, dy);
+        let mut between = Bitboard::EMPTY;
+        while square as u8 != to as u8 {
+            between.0 |= square.bitboard().0;
+            square = square.offset(dx, dy);
+        }
+        between
+    }
+    const TABLE: [[Bitboard; 64]; 64] = {
+        let mut table = [[Bitboard::EMPTY; 64]; 64];
+        let mut i = 0;
+        while i < table.len() {
+            let mut j = 0;
+            while j < table[i].len() {
+                table[i][j] = get_between_rays(
+                    Square::ALL[i],
+                    Square::ALL[j]
+                );
+                j += 1;
+            }
+            i += 1;
+        }
+        table
+    };
+    TABLE[from as usize][to as usize]
+}
+
+
+
+#[inline(always)]
+pub const fn get_rook_rays(square: Square) -> Bitboard {
+    const TABLE: [Bitboard; 64] = {
+        let mut table = [Bitboard::EMPTY; 64];
+        let mut i = 0;
+        while i < table.len() {
+            let square = Square::ALL[i];
+            table[i] = get_rook_attacks_const(square, Bitboard::EMPTY);
+            i += 1;
+        }
+        table
+    };
+    TABLE[square as usize]
+}
+
+#[inline(always)]
+pub const fn get_bishop_rays(square: Square) -> Bitboard {
+    const TABLE: [Bitboard; 64] = {
+        let mut table = [Bitboard::EMPTY; 64];
+        let mut i = 0;
+        while i < table.len() {
+            let square = Square::ALL[i];
+            table[i] = get_bishop_attacks_const(square, Bitboard::EMPTY);
+            i += 1;
+        }
+        table
+    };
+    TABLE[square as usize]
+}
+#[inline(always)]
+pub const fn get_line_rays(from: Square, to: Square) -> Bitboard {
+    const fn get_line_rays(from: Square, to: Square) -> Bitboard {
+        let rays = get_bishop_rays(from);
+        if rays.has(to) {
+            return Bitboard((rays.0 | from.bitboard().0) & (get_bishop_rays(to).0 | to.bitboard().0));
+        }
+        let rays = get_rook_rays(from);
+        if rays.has(to) {
+            return Bitboard((rays.0 | from.bitboard().0) & (get_rook_rays(to).0 | to.bitboard().0));
+        }
+        Bitboard::EMPTY
+    }
+    const TABLE: [[Bitboard; 64]; 64] = {
+        let mut table = [[Bitboard::EMPTY; 64]; 64];
+        let mut i = 0;
+        while i < table.len() {
+            let mut j = 0;
+            while j < table[i].len() {
+                table[i][j] = get_line_rays(
+                    Square::ALL[i],
+                    Square::ALL[j]
+                );
+                j += 1;
+            }
+            i += 1;
+        }
+        table
+    };
+    TABLE[from as usize][to as usize]
 }

@@ -32,7 +32,7 @@ impl Board {
         let captured_piece = self
             .piece_on(to)
             .expect("Move is capture promo but to square is empty.");
-        
+
         self.inner.xor_square(captured_piece, to);
 
         // Remove castling rights
@@ -42,15 +42,17 @@ impl Board {
         self.quiet_promotion_helper(promo_piece, moved_piece, from, to);
     }
     /// Push a move to the board
-    #[inline(always)]
     pub fn make_move(&mut self, mv: Move) {
+        self.checkers = Bitboard::EMPTY;
+        self.pinned = Bitboard::EMPTY;
+
         let from = mv.from();
         let to = mv.to();
         let flag = mv.flag();
+        let color = self.inner.side_to_move;
         let moved_piece = self
             .piece_on(from)
             .expect("No piece on move's from square.");
-        let move_mask = from.bitboard() | to.bitboard();
 
         match flag {
             MoveFlag::Quiet => {
@@ -90,134 +92,110 @@ impl Board {
             }
 
             MoveFlag::KingCastle => {
-                // Update king bitboard.
+                // Update king
                 self.inner.xor_square(moved_piece, from);
                 self.inner.xor_square(moved_piece, to);
 
-                // Update rook bitboard.
-                let from_n = from.bitboard().0;
-                let rook_mask = Bitboard(from_n << 1 | from_n << 3);
-                self.piece_bitboards[Piece::new(PieceType::Rook, self.inner.side_to_move) as usize] ^=
-                    rook_mask;
-                self.color_bitboards[self.side_to_move as usize] ^= rook_mask;
-
-                // Update mailbox.
-                let from_idx = from as usize;
-                self.mailbox.swap(from_idx, to as usize);
-                self.mailbox.swap(from_idx + 3, from_idx + 1);
+                // Update rook
+                let rook = Piece::new(PieceType::Rook, color);
+                self.inner
+                    .xor_square(rook, Square::H1.from_perspective(color));
+                self.inner
+                    .xor_square(rook, Square::F1.from_perspective(color));
 
                 // Remove castling rights
-                self.castling_rights.update(from, to);
+                self.inner.update_castling_rights(from, to);
 
                 // Remove en passant square
-                self.ep_square = None;
-                self.ep_pawn_square = None;
+                self.inner.set_en_passant(None);
 
                 // Update halfmove clock
                 self.halfmove_clock += 1;
             }
 
             MoveFlag::QueenCastle => {
-                // Update King bitboard.
-                self.piece_bitboards[moved_piece as usize] ^= move_mask;
-                self.color_bitboards[moved_piece.color() as usize] ^= move_mask;
+                // Update king
+                self.inner.xor_square(moved_piece, from);
+                self.inner.xor_square(moved_piece, to);
 
-                // Update rook bitboard.
-                let from_n = from.bitboard().0;
-                let rook_mask = Bitboard(from_n >> 1 | from_n >> 4);
-                self.piece_bitboards[Piece::new(PieceType::Rook, self.side_to_move) as usize] ^=
-                    rook_mask;
-                self.color_bitboards[self.side_to_move as usize] ^= rook_mask;
-
-                // Update mailbox.
-                let from_idx = from as usize;
-                self.mailbox.swap(from_idx, to as usize);
-                self.mailbox.swap(from_idx - 4, from_idx - 1);
+                // Update rook
+                let rook = Piece::new(PieceType::Rook, color);
+                self.inner
+                    .xor_square(rook, Square::A1.from_perspective(color));
+                self.inner
+                    .xor_square(rook, Square::D1.from_perspective(color));
 
                 // Remove castling rights
-                self.castling_rights.update(from, to);
+                self.inner.update_castling_rights(from, to);
 
                 // Remove en passant square
-                self.ep_square = None;
-                self.ep_pawn_square = None;
+                self.inner.set_en_passant(None);
 
                 // Update halfmove clock
                 self.halfmove_clock += 1;
             }
 
             MoveFlag::Capture => {
-                let captured_piece = self
+                let captured = self
                     .piece_on(to)
-                    .expect("Move is capture but to square is empty.");
-                let to_bb = to.bitboard();
+                    .expect("move is capture but no captured piece");
 
-                // Update bitboards
-                self.piece_bitboards[moved_piece as usize] ^= move_mask;
-                self.color_bitboards[moved_piece.color() as usize] ^= move_mask;
-                self.piece_bitboards[captured_piece as usize] ^= to_bb;
-                self.color_bitboards[captured_piece.color() as usize] ^= to_bb;
+                // Remove captured
+                self.inner.xor_square(captured, to);
 
-                // Update mailbox
-                self.mailbox[from as usize] = None;
-                self.mailbox[to as usize] = Some(moved_piece);
+                // Move Piece
+                self.inner.xor_square(moved_piece, from);
+                self.inner.xor_square(moved_piece, to);
 
-                // Update castling rights
-                self.castling_rights.update(from, to);
-
-                // Remove en passant square
-                self.ep_square = None;
-                self.ep_pawn_square = None;
-
+                // Update ep square
+                self.inner.set_en_passant(None);
                 // Update halfmove clock
                 self.halfmove_clock = 0;
             }
 
             MoveFlag::EnPassant => {
-                let ep_pawn_square = self
-                    .ep_pawn_square
-                    .expect("Move is en passant, but ep_square is none");
-                // Move piece
-                self.piece_bitboards[moved_piece as usize] ^= move_mask;
-                self.color_bitboards[moved_piece.color() as usize] ^= move_mask;
-                self.mailbox.swap(from as usize, to as usize);
+                // Move pawn
+                self.inner.xor_square(moved_piece, from);
+                self.inner.xor_square(moved_piece, to);
 
-                // Remove Pawn
-                self.piece_bitboards[(!self.side_to_move) as usize * 6] ^=
-                    ep_pawn_square.bitboard();
-                self.color_bitboards[(!self.side_to_move) as usize] ^= ep_pawn_square.bitboard();
-                self.mailbox[ep_pawn_square as usize] = None;
+                // Remove pawn
+                let ep_pawn_sq = Square::new(
+                    self.en_passant().expect("ep move but no ep file"),
+                    Rank::Fifth.from_perspective(color),
+                );
+                self.inner
+                    .xor_square(Piece::new(PieceType::Pawn, !color), ep_pawn_sq);
 
                 // Remove en passant square
-                self.ep_square = None;
-                self.ep_pawn_square = None;
+                self.inner.set_en_passant(None);
 
                 // Update halfmove clock
                 self.halfmove_clock = 0;
             }
 
             MoveFlag::KnightPromo => self.quiet_promotion_helper(
-                Piece::new(PieceType::Knight, self.side_to_move),
+                Piece::new(PieceType::Knight, color),
                 moved_piece,
                 from,
                 to,
             ),
 
             MoveFlag::BishopPromo => self.quiet_promotion_helper(
-                Piece::new(PieceType::Bishop, self.side_to_move),
+                Piece::new(PieceType::Bishop, color),
                 moved_piece,
                 from,
                 to,
             ),
 
             MoveFlag::RookPromo => self.quiet_promotion_helper(
-                Piece::new(PieceType::Rook, self.side_to_move),
+                Piece::new(PieceType::Rook, color),
                 moved_piece,
                 from,
                 to,
             ),
 
             MoveFlag::QueenPromo => self.quiet_promotion_helper(
-                Piece::new(PieceType::Queen, self.side_to_move),
+                Piece::new(PieceType::Queen, color),
                 moved_piece,
                 from,
                 to,
@@ -225,7 +203,7 @@ impl Board {
 
             MoveFlag::KnightPromoCapture => {
                 self.capture_promotion_helper(
-                    Piece::new(PieceType::Knight, self.side_to_move),
+                    Piece::new(PieceType::Knight, color),
                     moved_piece,
                     from,
                     to,
@@ -234,7 +212,7 @@ impl Board {
 
             MoveFlag::BishopPromoCapture => {
                 self.capture_promotion_helper(
-                    Piece::new(PieceType::Bishop, self.side_to_move),
+                    Piece::new(PieceType::Bishop, color),
                     moved_piece,
                     from,
                     to,
@@ -243,7 +221,7 @@ impl Board {
 
             MoveFlag::RookPromoCapture => {
                 self.capture_promotion_helper(
-                    Piece::new(PieceType::Rook, self.side_to_move),
+                    Piece::new(PieceType::Rook, color),
                     moved_piece,
                     from,
                     to,
@@ -252,7 +230,7 @@ impl Board {
 
             MoveFlag::QueenPromoCapture => {
                 self.capture_promotion_helper(
-                    Piece::new(PieceType::Queen, self.side_to_move),
+                    Piece::new(PieceType::Queen, color),
                     moved_piece,
                     from,
                     to,
@@ -260,13 +238,13 @@ impl Board {
             }
         }
 
-        // Update misc data
-        self.side_to_move = !self.side_to_move;
+        // Update turn 
+        self.inner.toggle_side_to_move();
+
+        // Update checkers (crucially after updating side to move!)
+        self.update_checkers_and_pinned();
 
         // Increment fullmove clock if black (branchless)
-        self.fullmove_clock += (self.side_to_move == Color::Black) as u16;
-
-        // Update occupancy
-        self.occupancy = self.color_bitboards[0] & self.color_bitboards[1];
+        self.fullmove_clock += (color == Color::Black) as u16;
     }
 }

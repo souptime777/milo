@@ -10,10 +10,16 @@ pub use zobrist_state::*;
 pub use movegen::*;
 
 /// A chess board.
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Board {
     // Inner values
     inner: ZobristState,
+
+    // A bitboard of the pieces checking the king.
+    checkers: Bitboard,
+
+    // A bitboard of pinned pieces
+    pinned: Bitboard,
 
     // The amount moves since the last capture or pawn move.
     halfmove_clock: u16,
@@ -95,6 +101,12 @@ impl Board {
         self.inner.en_passant()
     }
 
+    /// Get the side to move.
+    #[inline(always)]
+    pub const fn side_to_move(&self) -> Color {
+        self.inner.side_to_move
+    }
+
     /// Get the halfmove clock of a [Board]
     #[inline(always)]
     pub const fn halfmove_clock(&self) -> u16 {
@@ -107,6 +119,18 @@ impl Board {
         self.fullmove_clock
     }
 
+    /// Get a Bitboard of the checking pieces.
+    #[inline(always)]
+    pub fn checkers(&self) -> Bitboard {
+        self.checkers
+    }
+
+    /// Get a Bitboard of the pinned pieces
+    #[inline(always)]
+    pub fn pinned(&self) -> Bitboard {
+        self.pinned
+    }
+
     /// Get the square of a the king
     pub const fn king_square(&self, color: Color) -> Square {
         unsafe {
@@ -116,5 +140,35 @@ impl Board {
                     .trailing_zeros() as u8,
             )
         }
+    }
+
+    /// Update checker bitboard
+    #[inline(always)]
+    fn update_checkers_and_pinned(&mut self) {
+        self.checkers = Bitboard::EMPTY;
+        self.pinned = Bitboard::EMPTY;
+
+        let their_color = !self.side_to_move();
+
+        let our_king = self.king_square(!their_color);
+        let their_attackers = (get_bishop_rays(our_king)
+            & (self.piece_bitboard(Piece::new(PieceType::Bishop, their_color))
+                | self.piece_bitboard(Piece::new(PieceType::Queen, their_color))))
+            | (get_rook_rays(our_king)
+                & (self.piece_bitboard(Piece::new(PieceType::Rook, their_color))
+                    | self.piece_bitboard(Piece::new(PieceType::Queen, their_color))));
+
+        for square in their_attackers {
+            let between = get_between_rays(square, our_king) & self.occupancy();
+
+            match between.0.count_ones() {
+                0 => self.checkers |= square.bitboard(),
+                1 => self.pinned |= between,
+                _ => {}
+            }
+        }
+
+        self.checkers |= get_pawn_attacks(our_king, !their_color) & self.piece_bitboard(Piece::new(PieceType::Pawn, their_color));
+        self.checkers |= get_knight_attacks(our_king) & self.piece_bitboard(Piece::new(PieceType::Knight, their_color));
     }
 }

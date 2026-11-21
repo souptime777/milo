@@ -96,4 +96,25 @@ impl Square {
     pub const fn from_index(idx: u8) -> Self {
         Self::ALL[(idx & 63) as usize]
     }
+
+    /// Get the rank from the perspective of a color.
+    /// 
+    /// By default, it is in perpective of white.
+    #[inline(always)]
+    pub const fn from_perspective(self, color: Color) -> Self {
+        Self::ALL[( self as u8 ^ (color as u8 * 56) ) as usize]
+    }
+
+    /// Get the square at a certain offset
+    #[inline(always)]
+    pub const fn offset(self, dx: i8, dy: i8) -> Self {
+        let file = self.file() as i8 + dx;
+        let rank = self.rank() as i8 + dy;
+
+        if file < 0 || file >= 8 || rank < 0 || rank >= 8 {
+            return self;
+        }
+
+        Self::ALL[(rank * 8 + file) as usize]
+    }
 }

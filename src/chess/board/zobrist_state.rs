@@ -173,6 +173,26 @@ pub(super) struct ZobristState {
 }
 
 impl ZobristState {
+
+    #[inline(always)]
+    pub fn empty() -> Self {
+        Self {
+            piece_bitboards: [Bitboard::EMPTY; 12],
+            color_bitboards: [Bitboard::EMPTY; 2],
+            mailbox: [None; 64],
+            occupancy: Bitboard::EMPTY,
+            side_to_move: Color::White,
+            castling_rights: CastlingRights::new(
+                false,
+                false,
+                false,
+                false
+            ),
+            en_passant: None,
+            hash: 0
+        }
+    }
+
     /// Get the [Bitboard] of a [PieceType].
     #[inline(always)]
     pub fn piece_type_bitboard(&self, piece_type: PieceType) -> Bitboard {
@@ -228,6 +248,7 @@ impl ZobristState {
             && self.color_bitboards == other.color_bitboards
             && self.side_to_move == other.side_to_move
             && self.castling_rights == other.castling_rights
+            && self.en_passant == other.en_passant
     }
 
     /// Run the XOR operation on relevant bb, updating hash and mailbox.
@@ -251,11 +272,21 @@ impl ZobristState {
         *slot = slot.xor(Some(piece));
     }
 
-    /// Set the castling right, updating hash.
+    /// Update the castling right, updating hash.
     pub fn update_castling_rights(&mut self, from: Square, to: Square) {
         let prev = self.castling_rights.0;
         self.castling_rights.update(from, to);
         
+        self.hash ^= ZOBRIST.castle_rights[prev as usize];
+        self.hash ^= ZOBRIST.castle_rights[self.castling_rights.0 as usize];
+    }
+
+    /// Set the castling right
+    pub fn set_castling_rights(&mut self, rights: CastlingRights) {
+        let prev = self.castling_rights.0;
+        self.castling_rights = rights;
+
+
         self.hash ^= ZOBRIST.castle_rights[prev as usize];
         self.hash ^= ZOBRIST.castle_rights[self.castling_rights.0 as usize];
     }

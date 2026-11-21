@@ -12,7 +12,7 @@ pub struct ScoredMove {
 
 impl ScoredMove {
     #[inline(always)]
-    fn new(mv: Move, score: i32) -> Self {
+    pub fn new(mv: Move, score: i32) -> Self {
         Self { mv, score }
     }
 }
@@ -44,5 +44,19 @@ impl MoveList {
             .max_by_key(|(_, scored_move)| scored_move.score)?;
 
         Some(self.0.swap_remove(max_idx).mv)
+    }
+
+    #[inline(always)]
+    pub fn pop_move(&mut self) -> Option<Move> {
+        Some(self.0.pop()?.mv)
+    }
+
+    pub fn score_with<F>(&mut self, mut scorer: F) 
+    where 
+        F: FnMut(&Move) -> i32 
+    {
+        for scored_move in self.0.iter_mut() {
+            scored_move.score = scorer(&scored_move.mv)
+        }
     }
 }

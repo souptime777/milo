@@ -90,6 +90,13 @@ impl Iterator for BitboardIterator {
     }
 }
 
+impl ExactSizeIterator for BitboardIterator {
+    #[inline(always)]
+    fn len(&self) -> usize {
+        self.0.0.count_ones() as usize
+    }
+}
+
 impl IntoIterator for Bitboard {
     type Item = Square;
     type IntoIter = BitboardIterator;
@@ -216,6 +223,30 @@ impl Bitboard {
     #[inline(always)]
     pub const fn is_full(&self) -> bool {
         self.0 == !0
+    }
+
+    /// Get whether a square is on a Bitboard.
+    #[inline(always)]
+    pub const fn has(&self, sq: Square) -> bool {
+        self.0 & sq.bitboard().0 != 0
+    }
+
+    /// Get the first square without checking if empty
+    /// 
+    /// If empty, defaults to H1
+    #[inline(always)]
+    pub const fn first_square_unchecked(&self) -> Square {
+        unsafe { std::mem::transmute(self.0.trailing_zeros() as u8) }
+    }
+
+    /// Get the first square (in big endian order)
+    /// #[inline(always)]
+    pub const fn first_square(&self) -> Option<Square> {
+        if self.is_empty() {
+            return None;
+        }
+
+        Some(self.first_square_unchecked())
     }
 }
 

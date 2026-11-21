@@ -1,4 +1,4 @@
-use crate::*;
+use crate::{chess::board::ZobristState, *};
 
 use std::str::FromStr;
 
@@ -26,21 +26,16 @@ impl FromStr for Board {
         let halfmove_field = fields.next().ok_or(FenParseError::MissingField)?;
         let fullmove_field = fields.next().ok_or(FenParseError::MissingField)?;
 
-        let mut mailbox: [Option<Piece>; 64] = [None; 64];
-        let mut current_piece_idx: usize = 0;
+        let mut current_piece_idx = 0;
+        let mut zobrist = ZobristState::empty();
 
-        let mut piece_bitboards = [Bitboard::EMPTY; 12];
-        let mut color_bitboards = [Bitboard::EMPTY; 2];
-        let mut occupancy = Bitboard::EMPTY;
+
 
         for char in position_field.chars() {
             if let Ok(piece) = Piece::try_from(char) {
-                mailbox[current_piece_idx] = Some(piece);
-                let bit = 1u64 << current_piece_idx;
+                let sq = Square::ALL[current_piece_idx];
 
-                piece_bitboards[piece as usize] |= Bitboard(bit);
-                color_bitboards[piece.color() as usize] |= Bitboard(bit);
-                occupancy |= Bitboard(bit);
+                zobrist.xor_square(piece, sq);
 
                 current_piece_idx += 1;
             } else if let Some(digit) = char.to_digit(9) {
@@ -52,6 +47,10 @@ impl FromStr for Board {
             .parse::<Color>()
             .map_err(|_| FenParseError::InvalidSideToMove)?;
 
+        if zobrist.side_to_move != side_to_move {
+            zobrist.toggle_side_to_move();
+        }
+
         let castling_rights = CastlingRights::new(
             castling_rights_field.contains('K'),
             castling_rights_field.contains('Q'),
@@ -59,26 +58,18 @@ impl FromStr for Board {
             castling_rights_field.contains('q'),
         );
 
-        let ep_square = match ep_square_field {
+        zobrist.set_castling_rights(castling_rights);
+
+        let ep_file = match ep_square_field {
             "-" => None,
             _ => Some(
                 ep_square_field
                     .parse::<Square>()
-                    .map_err(|_| FenParseError::InvalidEpSquare)?,
+                    .map_err(|_| FenParseError::InvalidEpSquare)?.file(),
             ),
         };
 
-        let ep_pawn_square = if let Some(sq) = ep_square {
-            Some(match sq.rank() {
-                Rank::Sixth => Square::new(sq.file(), Rank::Fifth),
-                Rank::Third => Square::new(sq.file(), Rank::Fourth),
-                _ => {
-                    return Err(FenParseError::InvalidEpSquare);
-                }
-            })
-        } else {
-            None
-        };
+        zobrist.set_en_passant(ep_file);
 
         let halfmove_clock = halfmove_field
             .parse::<u16>()
@@ -88,18 +79,15 @@ impl FromStr for Board {
             .parse::<u16>()
             .map_err(|_| FenParseError::InvalidFullmoves)?;
 
-        Ok(Self {
-            piece_bitboards,
-            color_bitboards,
-            occupancy,
-            mailbox,
-            side_to_move,
-            castling_rights,
-            ep_square,
-            ep_pawn_square,
+        let mut board: Self = Self {
+            checkers: Bitboard::EMPTY,
+            pinned: Bitboard::EMPTY,
+            inner: zobrist,
             halfmove_clock,
             fullmove_clock,
-        })
+        };
+        board.update_checkers_and_pinned();
+        Ok(board)
     }
 }
 
@@ -154,25 +142,25 @@ impl Board {
         }
 
         fen.push(' '); // Space separator
-        fen.push(char::from(self.side_to_move)); // Side to move
+        fen.push(char::from(self.side_to_move())); // Side to move
         fen.push(' '); // Space separator
 
         // Castling rights
-        if self.castling_rights.white_kingside()
-            || self.castling_rights.white_queenside()
-            || self.castling_rights.black_kingside()
-            || self.castling_rights.black_queenside()
+        if self.castling_rights().white_kingside()
+            || self.castling_rights().white_queenside()
+            || self.castling_rights().black_kingside()
+            || self.castling_rights().black_queenside()
         {
-            if self.castling_rights.white_kingside() {
+            if self.castling_rights().white_kingside() {
                 fen.push('K')
             }
-            if self.castling_rights.white_queenside() {
+            if self.castling_rights().white_queenside() {
                 fen.push('Q')
             }
-            if self.castling_rights.black_kingside() {
+            if self.castling_rights().black_kingside() {
                 fen.push('k')
             }
-            if self.castling_rights.black_queenside() {
+            if self.castling_rights().black_queenside() {
                 fen.push('q')
             }
         } else {
@@ -181,8 +169,10 @@ impl Board {
 
         fen.push(' '); // Space separator
 
-        let ep_square = match self.ep_square {
-            Some(square) => &square.to_string(),
+
+
+        let ep_square = match self.en_passant() {
+            Some(file) => &Square::new(file, Rank::Sixth.from_perspective(self.side_to_move())).to_string(),
             None => "-",
         };
 
