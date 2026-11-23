@@ -16,7 +16,7 @@ const CASTLING_MASKS: [u8; 64] = [
 
 /// A small struct to hold a board's castling rights.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct CastlingRights(u8);
+pub struct CastlingRights(pub u8);
 
 impl CastlingRights {
     /// Create new castling rights
@@ -72,16 +72,31 @@ impl CastlingRights {
     pub const fn black_queenside(&self) -> bool {
         self.0 & BLACK_QUEENSIDE != 0
     }
+
+    /// Get if there are any castling rights at all
+    #[inline(always)]
+    pub const fn any(&self) -> bool {
+        self.0 != 0
+    }
+
+    /// Get the castling rights of the selected color
+    #[inline(always)]
+    pub const fn color_rights(&self, color: Color) -> ColorRights {
+        let kingside = (self.0 >> (color as u8 * 2) & 0b0001) != 0;
+        let queenside = (self.0 >> (color as u8 * 2) & 0b0010) != 0;
+        ColorRights { kingside, queenside }
+    }
 }
 
-#[derive(Debug)]
-pub struct ColorZobristConstants {
-    pieces: [[u64; 64]; 6],
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct ColorRights {
+    pub kingside: bool,
+    pub queenside: bool,
 }
 
 #[derive(Debug)]
 pub struct ZobristConstants {
-    color: [ColorZobristConstants; 2],
+    pieces: [[u64; 64]; 12],
     en_passant: [u64; 8],
     castle_rights: [u64; 16],
     black_to_move: u64
@@ -109,34 +124,23 @@ const ZOBRIST: ZobristConstants = {
         }};
     }
 
-    macro_rules! color_zobrist_constant {
-        () => {{
-            let mut pieces = [[0; 64]; 6];
-            fill_array!(pieces: {
-                let mut squares = [0; 64];
-                fill_array!(squares: rand!());
-                squares
-            });
-            
-            ColorZobristConstants {
-                pieces,
-            }
-        }};
-    }
-
     let mut en_passant = [0; 8];
     fill_array!(en_passant: rand!());
 
     let mut castle_rights = [0; 16];
     fill_array!(castle_rights: rand!());
 
-    let white = color_zobrist_constant!();
-    let black = color_zobrist_constant!();
+    let mut pieces = [[0; 64]; 12];
+    fill_array!(pieces: {
+        let mut squares = [0; 64];
+        fill_array!(squares: rand!());
+        squares
+    });
 
     let black_to_move = rand!();
 
     ZobristConstants {
-        color: [white, black],
+        pieces,
         en_passant,
         black_to_move,
         castle_rights,
@@ -261,15 +265,17 @@ impl ZobristState {
             self.mailbox[square as usize],
             piece
         );
+        
 
         let square_bb = square.bitboard();
-
         self.piece_bitboards[piece as usize] ^= square_bb;
         self.color_bitboards[piece.color() as usize] ^= square_bb;
         self.occupancy ^= square_bb;
 
         let slot = &mut self.mailbox[square as usize];
         *slot = slot.xor(Some(piece));
+
+        self.hash ^= ZOBRIST.pieces[piece as usize][square as usize];
     }
 
     /// Update the castling right, updating hash.

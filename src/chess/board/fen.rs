@@ -1,3 +1,5 @@
+use arrayvec::ArrayVec;
+
 use crate::{chess::board::ZobristState, *};
 
 use std::str::FromStr;
@@ -72,7 +74,7 @@ impl FromStr for Board {
         zobrist.set_en_passant(ep_file);
 
         let halfmove_clock = halfmove_field
-            .parse::<u16>()
+            .parse::<u8>()
             .map_err(|_| FenParseError::InvalidHalfmoves)?;
 
         let fullmove_clock = fullmove_field
@@ -85,6 +87,7 @@ impl FromStr for Board {
             inner: zobrist,
             halfmove_clock,
             fullmove_clock,
+            move_history: ArrayVec::new(),
         };
         board.update_checkers_and_pinned();
         Ok(board)

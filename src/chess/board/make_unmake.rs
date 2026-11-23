@@ -1,4 +1,5 @@
 use crate::*;
+use config::MAX_SEARCH_PLIES;
 
 impl Board {
     #[inline(always)]
@@ -43,9 +44,6 @@ impl Board {
     }
     /// Push a move to the board
     pub fn make_move(&mut self, mv: Move) {
-        self.checkers = Bitboard::EMPTY;
-        self.pinned = Bitboard::EMPTY;
-
         let from = mv.from();
         let to = mv.to();
         let flag = mv.flag();
@@ -53,6 +51,17 @@ impl Board {
         let moved_piece = self
             .piece_on(from)
             .expect("No piece on move's from square.");
+
+        let past_move = PastMove::new(
+            &mv, 
+            self.piece_on(to), 
+            self.castling_rights(), 
+            self.en_passant(), 
+            self.halfmove_clock());
+
+        debug_assert!(self.move_history.len() < MAX_SEARCH_PLIES as usize);
+        // SAFETY: Engine should never play beyond `MAX_SEARCH_PLIES`
+        unsafe { self.move_history.push_unchecked(past_move); }
 
         match flag {
             MoveFlag::Quiet => {
@@ -136,6 +145,7 @@ impl Board {
             }
 
             MoveFlag::Capture => {
+                
                 let captured = self
                     .piece_on(to)
                     .expect("move is capture but no captured piece");
@@ -149,6 +159,10 @@ impl Board {
 
                 // Update ep square
                 self.inner.set_en_passant(None);
+
+                // Update castling rights
+                self.inner.update_castling_rights(from, to);
+
                 // Update halfmove clock
                 self.halfmove_clock = 0;
             }
@@ -246,5 +260,60 @@ impl Board {
 
         // Increment fullmove clock if black (branchless)
         self.fullmove_clock += (color == Color::Black) as u16;
+    }
+
+    /// Undo the previous move.
+    pub fn unmake_move(&mut self) {
+        
+        let past_move = self.move_history.pop().expect("Attempted to unmake with no move history.");
+
+        let from = past_move.from();
+        let to = past_move.to();
+        let flag = past_move.flag();
+        self.inner.toggle_side_to_move();
+        self.inner.set_castling_rights(past_move.castling_rights());
+        self.inner.set_en_passant(past_move.en_passant());
+        self.halfmove_clock = past_move.halfmove_clock();
+        
+        let color = self.side_to_move();
+        self.fullmove_clock -= (color == Color::Black) as u16;
+
+        if past_move.is_promotion() {
+            let promo_piece = Piece::new(past_move.promotion_piece(), color);
+            let pawn = Piece::new(PieceType::Pawn, color);
+            self.inner.xor_square(promo_piece, to);
+            self.inner.xor_square(pawn, from);
+        } else {
+            let moved_piece = self
+                .piece_on(to)
+                .expect("No piece on move's to square.");
+            self.inner.xor_square(moved_piece, to);
+            self.inner.xor_square(moved_piece, from);
+
+            if flag == MoveFlag::KingCastle {
+                let rook = Piece::new(PieceType::Rook, color);
+                
+                self.inner.xor_square(rook, Square::F1.from_perspective(color));
+                self.inner.xor_square(rook, Square::H1.from_perspective(color));
+            } else if flag == MoveFlag::QueenCastle {
+                let rook = Piece::new(PieceType::Rook, color);
+                
+                self.inner.xor_square(rook, Square::A1.from_perspective(color));
+                self.inner.xor_square(rook, Square::D1.from_perspective(color));
+            } else if flag == MoveFlag::EnPassant {
+                let their_pawn = Piece::new(PieceType::Pawn, !color);
+                let ep_file = self.en_passant().unwrap(); // We've already set it!
+                let victim_square = Square::new(ep_file, Rank::Fifth.from_perspective(color));
+
+                self.inner.xor_square(their_pawn, victim_square);
+            }
+        }
+
+        if let Some(captured) = past_move.captured_piece() {
+            self.inner.xor_square(captured, to);
+        }
+
+        self.update_checkers_and_pinned();
+        
     }
 }

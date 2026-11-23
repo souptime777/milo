@@ -7,7 +7,7 @@ use crate::*;
 /// Note that it is only valid for one board at one time.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
-pub struct Move(u16);
+pub struct Move(pub u16);
 #[repr(u8)]
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub enum MoveFlag {
@@ -75,37 +75,37 @@ impl Move {
     /// Unpack the [Move]'s from square.
     #[inline(always)]
     pub const fn from(self) -> Square {
-        Square::from_index((self.0 >> 6) as u8)
+        Square::from_index(((self.0 >> 6) & 0x3F) as u8)
     }
 
     /// Unpack the [Move]'s to square.
     #[inline(always)]
     pub const fn to(self) -> Square {
-        Square::from_index((self.0) as u8)
+        Square::from_index((self.0 & 0x3F) as u8)
     }
 
     /// Unpack the [Move]'s flag.
     #[inline(always)]
-    pub const fn flag(self) -> MoveFlag {
+    pub const fn flag(&self) -> MoveFlag {
         unsafe { std::mem::transmute((self.0 >> 12) as u8) }
     }
 
     /// Return whether the [Move] is a capture.
     #[inline(always)]
-    pub const fn is_capture(self) -> bool {
+    pub const fn is_capture(&self) -> bool {
         (self.0 & (1 << 14)) != 0
     }
 
     /// Return whether the [Move] is a promotion.
     #[inline(always)]
-    pub const fn is_promotion(self) -> bool {
+    pub const fn is_promotion(&self) -> bool {
         (self.0 & (1 << 15)) != 0
     }
     /// Return the [Move]'s promotion piece.
     ///
     /// If the [Move] is not a promotion, it will return a garbage value.
     #[inline(always)]
-    pub const fn promotion_piece(self) -> PieceType {
+    pub const fn promotion_piece(&self) -> PieceType {
         PieceType::ALL[((self.0 >> 12) & 0b11) as usize + 1]
     }
 }

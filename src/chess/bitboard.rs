@@ -240,7 +240,7 @@ impl Bitboard {
     }
 
     /// Get the first square (in big endian order)
-    /// #[inline(always)]
+    #[inline(always)]
     pub const fn first_square(&self) -> Option<Square> {
         if self.is_empty() {
             return None;
@@ -248,6 +248,13 @@ impl Bitboard {
 
         Some(self.first_square_unchecked())
     }
+
+    /// Get the amount of squares.
+    #[inline(always)]
+    pub const fn len(&self) -> u32 {
+        self.0.count_ones()
+    }
+
 }
 
 #[macro_export]

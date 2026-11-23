@@ -1,3 +1,5 @@
+use std::{fmt::Display, ops::{Deref, DerefMut}, slice};
+
 use crate::*;
 use arrayvec::ArrayVec;
 
@@ -20,6 +22,57 @@ impl ScoredMove {
 #[derive(Clone, Debug)]
 pub struct MoveList(ArrayVec<ScoredMove, MAX_MOVES_PER_POSITION>);
 
+impl Default for MoveList {
+    #[inline(always)]
+    fn default() -> Self {
+        MoveList::new()
+    }
+}
+
+pub struct MoveListIter (arrayvec::IntoIter<ScoredMove, 218>);
+
+impl Iterator for MoveListIter {
+    type Item = Move;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        Some(self.0.next()?.mv)
+    }
+}
+
+impl IntoIterator for MoveList {
+    type Item = Move;
+    type IntoIter = MoveListIter;
+
+    fn into_iter(self) -> Self::IntoIter {
+        MoveListIter(self.0.into_iter())
+    }
+}
+
+impl Deref for MoveList {
+    type Target = [ScoredMove];
+
+    #[inline(always)]
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for MoveList {
+    #[inline(always)]
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl Display for MoveList {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for scored_move in self.iter() {
+            writeln!(f, "{} {} ", scored_move.mv, scored_move.score)?;
+        }
+        Ok(())
+    }
+}
+
 impl MoveList {
     #[inline(always)]
     pub fn new() -> Self {
@@ -29,6 +82,13 @@ impl MoveList {
     #[inline(always)]
     pub fn push(&mut self, entry: ScoredMove) {
         self.0.push(entry);
+    }
+
+    #[inline(always)]
+    pub fn push_move(&mut self, mv: Move) {
+        debug_assert!(self.len() < MAX_MOVES_PER_POSITION);
+
+        unsafe { self.0.push_unchecked(ScoredMove { mv, score: 0 }) };
     }
 
     #[inline(always)]
@@ -58,5 +118,25 @@ impl MoveList {
         for scored_move in self.0.iter_mut() {
             scored_move.score = scorer(&scored_move.mv)
         }
+    }
+
+    #[inline(always)]
+    pub fn iter(&self) -> slice::Iter<'_, ScoredMove> {
+        self.0.iter()
+    }
+
+    #[inline(always)]
+    pub fn iter_mut(&mut self) -> slice::IterMut<'_, ScoredMove> {
+        self.0.iter_mut()
+    }
+
+    #[inline(always)]
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    #[inline(always)]
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
     }
 }

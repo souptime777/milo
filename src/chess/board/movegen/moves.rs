@@ -295,6 +295,26 @@ pub fn get_pawn_attacks(sq: Square, color: Color) -> Bitboard {
 }
 
 #[inline(always)]
+pub const fn get_pawn_quiets(square: Square, color: Color, blockers: Bitboard) -> Bitboard {
+    let square_bb = square.bitboard();
+    let mut moves = Bitboard(if let Color::White = color {
+        square_bb.0 >> 8
+    } else {
+        square_bb.0 << 8
+    });
+    moves.0 &= !blockers.0;
+    if !moves.is_empty() && Rank::Second.from_perspective(color).bitboard().has(square) {
+        moves.0 |= if let Color::White = color {
+            moves.0 >> 8
+        } else {
+            moves.0 << 8
+        };
+        moves.0 &= !blockers.0;
+    }
+    moves
+}
+
+#[inline(always)]
 pub const fn get_between_rays(from: Square, to: Square) -> Bitboard {
     const fn get_between_rays(from: Square, to: Square) -> Bitboard {
         let dx = to.file() as i8 - from.file() as i8;

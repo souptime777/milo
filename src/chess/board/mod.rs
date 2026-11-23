@@ -1,16 +1,21 @@
 mod fen;
 mod make_unmake;
 mod movegen;
+mod past_move;
 mod zobrist_state;
 
 use crate::*;
+use config::{HALFMOVE_RULE, MAX_SEARCH_PLIES};
 use std::{fmt};
-pub use zobrist_state::*;
+use movegen::*;
+use arrayvec::ArrayVec;
 
-pub use movegen::*;
+pub use past_move::PastMove;
+pub use zobrist_state::*;
+pub use movegen::MoveList;
 
 /// A chess board.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Board {
     // Inner values
     inner: ZobristState,
@@ -22,10 +27,13 @@ pub struct Board {
     pinned: Bitboard,
 
     // The amount moves since the last capture or pawn move.
-    halfmove_clock: u16,
+    halfmove_clock: u8,
 
     // The amount of full moves that have been played by both players
     fullmove_clock: u16,
+
+    // The history required to rebuild previous positions
+    move_history: ArrayVec<PastMove, {MAX_SEARCH_PLIES as usize}>
 }
 
 impl fmt::Display for Board {
@@ -109,7 +117,7 @@ impl Board {
 
     /// Get the halfmove clock of a [Board]
     #[inline(always)]
-    pub const fn halfmove_clock(&self) -> u16 {
+    pub const fn halfmove_clock(&self) -> u8 {
         self.halfmove_clock
     }
 
@@ -117,6 +125,21 @@ impl Board {
     #[inline(always)]
     pub const fn fullmove_clock(&self) -> u16 {
         self.fullmove_clock
+    }
+
+    /// Get the incrementally updated hash of the board
+    #[inline(always)]
+    pub fn hash(&self) -> u64 {
+        self.inner.hash()
+    }
+
+    /// Check whether a board is exactly equal 
+    /// 
+    /// Slower that comparing hash, but guarantees no collisions.
+    /// Only counts position, not clocks.
+    #[inline(always)]
+    pub fn is_equal(&self, other: &Board) -> bool {
+        self.inner.state_is_equal(&other.inner)
     }
 
     /// Get a Bitboard of the checking pieces.
@@ -142,6 +165,10 @@ impl Board {
         }
     }
 
+    #[inline(always)]
+    pub const fn is_halfmove_rule(&self) -> bool {
+        self.halfmove_clock >= HALFMOVE_RULE
+    }
     /// Update checker bitboard
     #[inline(always)]
     fn update_checkers_and_pinned(&mut self) {
