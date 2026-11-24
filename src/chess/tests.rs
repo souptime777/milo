@@ -19,13 +19,13 @@ pub fn perft_test() {
 }
 
 pub fn perft(board: &mut Board, depth: u8) -> u64 {
-    if depth == 0 {
-        return 1;
-    }
-    
     let mut nodes = 0;
     let mut moves = MoveList::new();
     board.generate_moves_into(&mut moves);
+
+    if depth == 1 {
+        return moves.len() as u64;
+    }
 
     for mv in moves {
         board.make_move(mv);
