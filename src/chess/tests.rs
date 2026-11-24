@@ -35,3 +35,20 @@ pub fn perft(board: &mut Board, depth: u8) -> u64 {
 
     nodes
 }
+
+pub fn full_perft(board: &mut Board, depth: u8) -> u64 {
+    if depth == 0 {
+        return 1
+    }
+    let mut nodes = 0;
+    let mut moves = MoveList::new();
+    board.generate_moves_into(&mut moves);
+
+    for mv in moves {
+        board.make_move(mv);
+        nodes += full_perft(board, depth - 1);
+        board.unmake_move();
+    }
+
+    nodes
+}

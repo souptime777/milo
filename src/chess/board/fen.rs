@@ -88,6 +88,7 @@ impl FromStr for Board {
             halfmove_clock,
             fullmove_clock,
             move_history: ArrayVec::new(),
+            pin_check_history: ArrayVec::new(),
         };
         board.update_checkers_and_pinned();
         Ok(board)

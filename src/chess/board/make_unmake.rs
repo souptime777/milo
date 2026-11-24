@@ -61,7 +61,15 @@ impl Board {
 
         debug_assert!(self.move_history.len() < MAX_SEARCH_PLIES as usize);
         // SAFETY: Engine should never play beyond `MAX_SEARCH_PLIES`
-        unsafe { self.move_history.push_unchecked(past_move); }
+        unsafe { 
+            self.move_history.push_unchecked(past_move);
+            self.pin_check_history.push_unchecked(
+                (
+                    self.pinned(),
+                    self.checkers(),
+                )  
+            ); 
+        }
 
         match flag {
             MoveFlag::Quiet => {
@@ -313,7 +321,8 @@ impl Board {
             self.inner.xor_square(captured, to);
         }
 
-        self.update_checkers_and_pinned();
+        
+        (self.pinned, self.checkers) = self.pin_check_history.pop().unwrap();
         
     }
 }

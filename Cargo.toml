@@ -11,5 +11,12 @@ path = "src/lib.rs"
 name = "milo"
 path = "src/main.rs"
 
+[dev-dependencies]
+criterion = { version = "0.8", features = ["html_reports"] }
+
+[[bench]]
+name = "perft"
+harness = false
+
 [dependencies]
 arrayvec = "0.7.8"

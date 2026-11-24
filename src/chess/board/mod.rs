@@ -33,7 +33,9 @@ pub struct Board {
     fullmove_clock: u16,
 
     // The history required to rebuild previous positions
-    move_history: ArrayVec<PastMove, {MAX_SEARCH_PLIES as usize}>
+    move_history: ArrayVec<PastMove, {MAX_SEARCH_PLIES as usize}>,
+    pin_check_history: ArrayVec<(Bitboard, Bitboard), {MAX_SEARCH_PLIES as usize}>
+    
 }
 
 impl fmt::Display for Board {
@@ -46,7 +48,7 @@ impl fmt::Display for Board {
 
             // Print piece
             let char = if let Some(piece) = piece {
-                char::from(*piece)
+                piece.image_char()
             } else {
                 '·'
             };

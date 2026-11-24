@@ -7,9 +7,6 @@ use std::path::Path;
 mod magic_data;
 use magic_data::*;
 
-// For A8 = 0 .. H1 = 63:
-// Rank 8 is bits 0..7 (0x0000_0000_0000_00FF)
-// Rank 1 is bits 56..63 (0xFF00_0000_0000_0000)
 const EDGES_FILES: u64 = 0x8181_8181_8181_8181; // File A | File H
 const EDGES_RANKS: u64 = 0xFF00_0000_0000_00FF; // Rank 1 | Rank 8
 

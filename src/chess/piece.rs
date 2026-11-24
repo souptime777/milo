@@ -77,4 +77,23 @@ impl Piece {
     pub const fn color(self) -> Color {
         unsafe { std::mem::transmute((self as u8) / 6) }
     }
+
+    /// Get the pieces non-letter character (♔)
+    pub const fn image_char(self) -> char {
+        match self {
+            Self::WhitePawn => '♟',
+            Self::WhiteKnight => '♞',
+            Self::WhiteBishop => '♝',
+            Self::WhiteRook => '♜',
+            Self::WhiteQueen => '♛',
+            Self::WhiteKing => '♚',
+
+            Self::BlackPawn => '♙',
+            Self::BlackKnight => '♘',
+            Self::BlackBishop => '♗',
+            Self::BlackRook => '♖',
+            Self::BlackQueen => '♕',
+            Self::BlackKing => '♔',
+        }
+    }
 }
