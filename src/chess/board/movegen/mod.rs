@@ -235,11 +235,12 @@ impl Board {
     fn add_knight_moves<
         const IN_CHECK: bool, const GEN_TYPE: u8
     >(&self, move_list: &mut MoveList) {
-        let piece = Piece::new(PieceType::Knight, self.side_to_move());
+        let color = self.side_to_move();
+        let piece = Piece::new(PieceType::Knight, color);
         let pieces = self.piece_bitboard(piece);
         let pinned = self.pinned;
         let targets = self.target_squares::<IN_CHECK, GEN_TYPE>();
-        
+        let their_pieces = self.color_bitboard(!color);
 
         for piece in pieces & !pinned {
             let to_squares = get_knight_attacks(piece) & targets;
@@ -248,7 +249,7 @@ impl Board {
                     MoveFlag::Capture
                 } else if GEN_TYPE == GenType::Quiets as u8 {
                     MoveFlag::Quiet
-                } else if self.piece_on(to).is_some() {
+                } else if their_pieces.has(to) {
                     MoveFlag::Capture
                 } else {
                     MoveFlag::Quiet
@@ -266,6 +267,7 @@ impl Board {
         let color = self.side_to_move();
         let piece = Piece::new(PieceType::Bishop, color);
         let pieces = self.piece_bitboard(piece);
+        let their_pieces = self.color_bitboard(!color);
         let our_king = self.king_square(color);
         let pinned = self.pinned;
         let blockers = self.occupancy();
@@ -279,7 +281,7 @@ impl Board {
                     MoveFlag::Capture
                 } else if GEN_TYPE == GenType::Quiets as u8 {
                     MoveFlag::Quiet
-                } else if self.piece_on(to).is_some() {
+                } else if their_pieces.has(to) {
                     MoveFlag::Capture
                 } else {
                     MoveFlag::Quiet
@@ -299,7 +301,7 @@ impl Board {
                         MoveFlag::Capture
                     } else if GEN_TYPE == GenType::Quiets as u8 {
                         MoveFlag::Quiet
-                    } else if self.piece_on(to).is_some() {
+                    } else if their_pieces.has(to) {
                         MoveFlag::Capture
                     } else {
                         MoveFlag::Quiet
@@ -317,6 +319,7 @@ impl Board {
         let piece = Piece::new(PieceType::Rook, color);
         let pieces = self.piece_bitboard(piece);
         let our_king = self.king_square(color);
+        let their_pieces = self.color_bitboard(!color);
         let pinned = self.pinned;
         let blockers = self.occupancy();
         let targets = self.target_squares::<IN_CHECK, GEN_TYPE>();
@@ -329,7 +332,7 @@ impl Board {
                     MoveFlag::Capture
                 } else if GEN_TYPE == GenType::Quiets as u8 {
                     MoveFlag::Quiet
-                } else if self.piece_on(to).is_some() {
+                } else if their_pieces.has(to) {
                     MoveFlag::Capture
                 } else {
                     MoveFlag::Quiet
@@ -349,7 +352,7 @@ impl Board {
                         MoveFlag::Capture
                     } else if GEN_TYPE == GenType::Quiets as u8 {
                         MoveFlag::Quiet
-                    } else if self.piece_on(to).is_some() {
+                    } else if their_pieces.has(to) {
                         MoveFlag::Capture
                     } else {
                         MoveFlag::Quiet
@@ -370,6 +373,7 @@ impl Board {
         let pinned = self.pinned;
         let blockers = self.occupancy();
         let targets = self.target_squares::<IN_CHECK, GEN_TYPE>();
+        let their_pieces = self.color_bitboard(!color);
 
         // Generate for non-pinned pieces
         for piece in pieces & !pinned {
@@ -379,7 +383,7 @@ impl Board {
                     MoveFlag::Capture
                 } else if GEN_TYPE == GenType::Quiets as u8 {
                     MoveFlag::Quiet
-                } else if self.piece_on(to).is_some() {
+                } else if their_pieces.has(to) {
                     MoveFlag::Capture
                 } else {
                     MoveFlag::Quiet
@@ -399,7 +403,7 @@ impl Board {
                         MoveFlag::Capture
                     } else if GEN_TYPE == GenType::Quiets as u8 {
                         MoveFlag::Quiet
-                    } else if self.piece_on(to).is_some() {
+                    } else if their_pieces.has(to) {
                         MoveFlag::Capture
                     } else {
                         MoveFlag::Quiet
@@ -416,7 +420,14 @@ impl Board {
         let blockers = self.occupancy() 
             ^ self.piece_bitboard(Piece::new(PieceType::King, color))
             | square.bitboard();
-        
+            if !(get_pawn_attacks(square, color)
+            & self.piece_bitboard(Piece::new(PieceType::Pawn, !color))).is_empty() {
+                return false;
+            }
+            if !(get_knight_attacks(square) 
+            & self.piece_bitboard(Piece::new(PieceType::Knight, !color))).is_empty() {
+                return false;
+            }
             if !(get_bishop_attacks(square, blockers) & (
                 self.piece_bitboard(Piece::new(PieceType::Bishop, !color))
                 | self.piece_bitboard(Piece::new(PieceType::Queen, !color))
@@ -429,18 +440,11 @@ impl Board {
             )).is_empty() {
                 return false;
             }
-            if !(get_knight_attacks(square) 
-            & self.piece_bitboard(Piece::new(PieceType::Knight, !color))).is_empty() {
-                return false;
-            }
             if !(get_king_attacks(square)
             & self.piece_bitboard(Piece::new(PieceType::King, !color))).is_empty() {
                 return false
             }
-            if !(get_pawn_attacks(square, color)
-            & self.piece_bitboard(Piece::new(PieceType::Pawn, !color))).is_empty() {
-                return false;
-            }
+
         true
     }
 
@@ -467,6 +471,7 @@ impl Board {
         let color = self.side_to_move();
         let our_king = self.king_square(color);
         let our_pieces = self.color_bitboard(color);
+        let their_pieces = self.color_bitboard(!color);
 
         let targets = if GEN_TYPE == GenType::Captures as u8 {
             self.color_bitboard(!color)
@@ -481,7 +486,7 @@ impl Board {
                     MoveFlag::Capture
                 } else if GEN_TYPE == GenType::Quiets as u8 {
                     MoveFlag::Quiet
-                } else if self.piece_on(to).is_some() {
+                } else if their_pieces.has(to) {
                     MoveFlag::Capture
                 } else {
                     MoveFlag::Quiet

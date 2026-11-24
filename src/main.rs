@@ -9,5 +9,4 @@ fn main() {
     let elapsed = start.elapsed().as_secs_f64();
     let rate = (nodes as f64) / elapsed;
     println!("{} nodes in {} seconds ({} nps)", nodes, elapsed, rate.round());
-
 }

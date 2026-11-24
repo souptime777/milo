@@ -230,26 +230,55 @@ pub const BISHOP_RELEVANT_OCCUPANCY: [Bitboard; 64] = {
     relevant_occupancy
 };
 
+
 #[inline(always)]
 pub fn get_rook_attacks(sq: Square, occupancy: Bitboard) -> Bitboard{
     let idx = sq as usize;
-    let blockers = occupancy.0 & ROOK_RELEVANT_OCCUPANCY[idx].0;
-    let magic = ROOK_MAGICS[idx];
+    let blockers = occupancy.0;
+    let mask = ROOK_RELEVANT_OCCUPANCY[idx].0;
+    let m = &ROOK_MAGICS[idx];
+    let offset = m.offset;
 
-    let table_idx = ((blockers.wrapping_mul(magic.magic)) >> magic.shift) as usize + magic.offset;
+    // PEXT
+    #[cfg(all(target_arch = "x86_64", target_feature = "bmi2"))]
+    let table_idx = unsafe { 
+        (core::arch::x86_64::_pext_u64(blockers, mask)) as usize + offset
+    };
 
-    unsafe {*rook_lookup_table().get_unchecked(table_idx)}
+    // Plain magics fallback
+    #[cfg(not(all(target_arch = "x86_64", target_feature = "bmi2")))]
+    let table_idx =  {
+        let magic = m.magic;
+        let shift = m.shift;
+        (((blockers & mask).wrapping_mul(magic)) >> shift) as usize + offset
+    };
+        
+    unsafe { *rook_lookup_table().get_unchecked(table_idx) }
 }
 
 #[inline(always)]
 pub fn get_bishop_attacks(sq: Square, occupancy: Bitboard) -> Bitboard{
     let idx = sq as usize;
-    let blockers = occupancy.0 & BISHOP_RELEVANT_OCCUPANCY[idx].0;
-    let magic = BISHOP_MAGICS[idx];
+    let blockers = occupancy.0;
+    let mask = BISHOP_RELEVANT_OCCUPANCY[idx].0;
+    let m = &BISHOP_MAGICS[idx];
+    let offset = m.offset;
 
-    let table_idx = ((blockers.wrapping_mul(magic.magic)) >> magic.shift) as usize + magic.offset;
+    // PEXT
+    #[cfg(all(target_arch = "x86_64", target_feature = "bmi2"))]
+    let table_idx = unsafe { 
+        (core::arch::x86_64::_pext_u64(blockers, mask)) as usize + offset
+    };
 
-    unsafe {*bishop_lookup_table().get_unchecked(table_idx)}
+    // Plain magics fallback
+    #[cfg(not(all(target_arch = "x86_64", target_feature = "bmi2")))]
+    let table_idx =  {
+        let magic = m.magic;
+        let shift = m.shift;
+        (((blockers & mask).wrapping_mul(magic)) >> shift) as usize + offset
+    };
+        
+    unsafe { *bishop_lookup_table().get_unchecked(table_idx) }
 }
 
 #[inline(always)]
