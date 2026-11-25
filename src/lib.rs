@@ -1,12 +1,14 @@
 pub mod chess;
+pub mod uci;
+
 pub use chess::{
-    bitboard::*, 
+    bitboard::*,
     board::*,
-    color::*, 
-    file::*, 
-    r#move::*, 
-    piece::*, 
-    rank::*, 
+    color::*,
+    file::*,
+    piece::*,
+    r#move::*,
+    rank::*,
     square::*,
     tests,
 };

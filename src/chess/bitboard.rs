@@ -1,6 +1,7 @@
 use crate::*;
 use core::fmt;
 use core::ops::*;
+use std::iter::FusedIterator;
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default, Hash, Debug)]
 #[repr(transparent)]
@@ -73,18 +74,17 @@ impl SubAssign for Bitboard {
     }
 }
 
-pub struct BitboardIterator(Bitboard);
-
+pub struct BitboardIterator(u64);
 impl Iterator for BitboardIterator {
     type Item = Square;
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        if self.0.0 == 0 {
+        if self.0 == 0 {
             return None;
         }
-        let square = self.0.0.trailing_zeros() as u8;
-        self.0.0 &= self.0.0 - 1;
+        let square = self.0.trailing_zeros() as u8;
+        self.0 &= self.0 - 1;
 
         Some(unsafe { std::mem::transmute(square) })
     }
@@ -93,16 +93,18 @@ impl Iterator for BitboardIterator {
 impl ExactSizeIterator for BitboardIterator {
     #[inline(always)]
     fn len(&self) -> usize {
-        self.0.0.count_ones() as usize
+        self.0.count_ones() as usize
     }
 }
+
+impl FusedIterator for BitboardIterator {}
 
 impl IntoIterator for Bitboard {
     type Item = Square;
     type IntoIter = BitboardIterator;
 
     fn into_iter(self) -> Self::IntoIter {
-        BitboardIterator(self)
+        BitboardIterator(self.0)
     }
 }
 

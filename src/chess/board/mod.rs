@@ -13,6 +13,7 @@ use arrayvec::ArrayVec;
 pub use past_move::PastMove;
 pub use zobrist_state::*;
 pub use movegen::MoveList;
+pub use fen::FenParseError;
 
 /// A chess board.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -40,20 +41,18 @@ pub struct Board {
 
 impl fmt::Display for Board {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for (sq, piece) in self.inner.mailbox().iter().enumerate() {
-            // Newline every 8 squares
-            if sq != 0 && sq % 8 == 0 {
-                writeln!(f)?;
+        for rank in Rank::ALL {
+            for file in File::ALL {
+                let square = Square::new(file, rank);
+                let char = match self.piece_on(square) {
+                    Some(piece) => {
+                        piece.image_char()
+                    }
+                    None => '.'
+                };
+                write!(f, "{} ", char)?;
             }
-
-            // Print piece
-            let char = if let Some(piece) = piece {
-                piece.image_char()
-            } else {
-                '·'
-            };
-
-            write!(f, "{} ", char)?;
+            writeln!(f)?;
         }
 
         Ok(())
