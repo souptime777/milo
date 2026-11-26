@@ -1,10 +1,9 @@
 mod moves;
 mod magic_data;
-pub mod movelist;
 
 use crate::*;
 
-pub use movelist::*;
+pub use crate::chess::movelist::*;
 pub use moves::*;
 
 #[repr(u8)]

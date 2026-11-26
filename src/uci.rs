@@ -2,7 +2,6 @@ use std::str::FromStr;
 use std::time::Duration;
 use crate::{Board, FenParseError};
 use crate::Move;
-use crate::uci::UciCommand::Position;
 
 #[derive(Debug)]
 pub struct SetOptionArgs {
@@ -37,12 +36,6 @@ pub enum GoError {
 }
 
 #[derive(Debug)]
-pub struct PositionArgs {
-    pub position: Board,
-    pub moves: Option<Vec<Move>>,
-}
-
-#[derive(Debug)]
 pub enum PositionError {
     NoRootPosition,
     InvalidFen {
@@ -59,7 +52,7 @@ pub enum UciCommand {
     SetOption(SetOptionArgs),
     IsReady,
     UciNewGame,
-    Position(PositionArgs),
+    Position(Board),
     Go(GoArgs),
     Stop,
 }
@@ -160,18 +153,18 @@ impl FromStr for UciCommand {
                     }
                     _ => return Err(E::Position(PositionError::NoRootPosition)),
                 };
-                
-                let moves = match args_iter.next() {
+
+                match args_iter.next() {
                     Some("moves") => {
-                        let mut moves = Vec::new();
-
-                        for mv in args_iter {
-                            todo!("Parse move {mv}");
+                        for s in args_iter {
+                            if let Ok(mv) = Move::from_uci(s, &board) {
+                                board.make_move(mv);
+                            } else {
+                                return Err(E::Position(PositionError::InvalidMove(s.to_string())));
+                            }
                         }
-
-                        Some(moves)
                     }
-                    None => None,
+                    None => {},
                     Some(other) => {
                         return Err(E::MalformedArgument {
                             cmd: cmd.to_string(),
@@ -179,11 +172,8 @@ impl FromStr for UciCommand {
                         });
                     }
                 };
-                
-                Ok(Position(PositionArgs {
-                    position: board,
-                    moves,
-                }))
+
+                Ok(Cmd::Position(board))
             }
             _ => Err(E::UnrecognizedCommand(cmd.to_string())),
         }

@@ -7,6 +7,10 @@ edition = "2024"
 name = "milo_core"
 path = "src/lib.rs"
 
+[features]
+default = ["pext"]
+pext = []
+
 [[bin]]
 name = "milo"
 path = "src/main.rs"

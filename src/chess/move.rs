@@ -4,7 +4,7 @@ use crate::*;
 
 /// A chess move.
 ///
-/// Note that it is only valid for one board at one time.
+/// Note that it is only valid for one board at one time, as it contains a [MoveFlag].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct Move(pub u16);
@@ -27,35 +27,17 @@ pub enum MoveFlag {
     QueenPromoCapture = 15,
 }
 
-// #[derive(Debug)]
-// pub enum ParseMoveError {
-//     InvalidFromSquare,
-//     InvalidToSquare,
-//     InvalidPromotionPiece,
-//     InvalidUciFormat,
-// }
-
-// impl FromStr for Move {
-//     type Err = ParseMoveError;
-
-//     fn from_str(s: &str) -> Result<Self, Self::Err> {
-//         if !s.is_ascii() || s.len() < 4 || s.len() > 5 {
-//             return Err(ParseMoveError::InvalidUciFormat);
-//         }
-//         Ok(Move {
-//             from: s[0..2].parse::<Square>().map_err(|_| ParseMoveError::InvalidFromSquare)?,
-//             to: s[2..4].parse::<Square>().map_err(|_| ParseMoveError::InvalidToSquare)?,
-//             promotion: if s.len() == 5 {
-//                 Some(s[4..5].parse::<Piece>().map_err(|_| ParseMoveError::InvalidPromotionPiece)?)
-//             } else {
-//                 None
-//             },
-//         })
-//     }
-// }
+#[derive(Debug)]
+pub enum MoveParseError {
+    InvalidFromSquare,
+    InvalidToSquare,
+    InvalidPromotionPiece,
+    InvalidUciFormat,
+    IllegalMove,
+}
 
 impl fmt::Display for Move {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}{}", self.from(), self.to())?;
         if self.is_promotion() {
             write!(f, "{}", self.promotion_piece())?;
@@ -71,7 +53,44 @@ impl Move {
     pub const fn new(from: Square, to: Square, flag: MoveFlag) -> Self {
         Self((to as u16) | (from as u16) << 6 | (flag as u16) << 12)
     }
+    #[inline(always)]
+    pub fn from_uci(s: &str, board: &Board) -> Result<Self, MoveParseError> {
+        if !(4..=5).contains(&s.len()) || !s.is_ascii() {
+            return Err(MoveParseError::InvalidUciFormat);
+        }
 
+        let from: Square = s[0..=1].parse().map_err(|_| MoveParseError::InvalidFromSquare)?;
+        let to: Square = s[2..=3].parse().map_err(|_| MoveParseError::InvalidToSquare)?;
+        let promo  = s.chars()
+            .nth(4)
+            .map(|c| PieceType::try_from(c))
+            .transpose()
+            .map_err(|_| MoveParseError::InvalidPromotionPiece)?;
+
+        let mut legals = MoveList::new();
+        board.generate_moves_into(&mut legals);
+
+        for legal in legals {
+            if legal.from() == from
+                && legal.to() == to {
+                
+                if !legal.is_promotion() && promo.is_some() {
+                    continue
+                }
+                
+                if legal.is_promotion() {
+                    if let Some(promo) = promo
+                    && legal.promotion_piece() == promo {
+                        return Ok(legal);
+                    }
+                    continue;
+                }
+                return Ok(legal);
+            }
+        }
+
+        Err(MoveParseError::IllegalMove)
+    }
     /// Unpack the [Move]'s from square.
     #[inline(always)]
     pub const fn from(self) -> Square {

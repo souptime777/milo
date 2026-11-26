@@ -323,6 +323,5 @@ impl Board {
 
         
         (self.pinned, self.checkers) = self.pin_check_history.pop().unwrap();
-        
     }
 }

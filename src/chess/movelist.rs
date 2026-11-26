@@ -3,7 +3,7 @@ use std::{fmt::Display, ops::{Deref, DerefMut}, slice};
 use crate::*;
 use arrayvec::ArrayVec;
 
-const MAX_MOVES_PER_POSITION: usize = 218;
+const MAX_MOVES_PER_POSITION: usize = 256;
 
 #[repr(C, align(8))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -29,7 +29,7 @@ impl Default for MoveList {
     }
 }
 
-pub struct MoveListIter (arrayvec::IntoIter<ScoredMove, 218>);
+pub struct MoveListIter (arrayvec::IntoIter<ScoredMove, MAX_MOVES_PER_POSITION>);
 
 impl Iterator for MoveListIter {
     type Item = Move;
@@ -81,7 +81,9 @@ impl MoveList {
 
     #[inline(always)]
     pub fn push(&mut self, entry: ScoredMove) {
-        self.0.push(entry);
+        debug_assert!(self.len() < MAX_MOVES_PER_POSITION);
+        
+        unsafe { self.0.push_unchecked(entry); }
     }
 
     #[inline(always)]

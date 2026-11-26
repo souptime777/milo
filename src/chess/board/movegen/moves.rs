@@ -2,8 +2,8 @@ use crate::*;
 
 use super::magic_data::*;
 
-const TOTAL_ROOK_BYTES: usize = ROOK_TABLE_SIZE * std::mem::size_of::<Bitboard>();
-const TOTAL_BISHOP_BYTES: usize = BISHOP_TABLE_SIZE * std::mem::size_of::<Bitboard>();
+const TOTAL_ROOK_BYTES: usize = ROOK_TABLE_SIZE * size_of::<Bitboard>();
+const TOTAL_BISHOP_BYTES: usize = BISHOP_TABLE_SIZE * size_of::<Bitboard>();
 
 #[repr(C, align(8))]
 struct AlignedRookLut([u8; TOTAL_ROOK_BYTES]);
@@ -149,8 +149,8 @@ static RAW_BISHOP_LUT: AlignedBishopLut = AlignedBishopLut(*include_bytes!(conca
 pub const fn rook_lookup_table() -> &'static [Bitboard; ROOK_TABLE_SIZE] {
 
     // Compile time checks
-    const _: () = assert!(std::mem::size_of::<Bitboard>() == 8);
-    const _: () = assert!(std::mem::align_of::<Bitboard>() == 8);
+    const _: () = assert!(size_of::<Bitboard>() == 8);
+    const _: () = assert!(align_of::<Bitboard>() == 8);
 
     unsafe { &*(RAW_ROOK_LUT.0.as_ptr() as *const [Bitboard; ROOK_TABLE_SIZE])}
 }
@@ -159,8 +159,8 @@ pub const fn rook_lookup_table() -> &'static [Bitboard; ROOK_TABLE_SIZE] {
 pub const fn bishop_lookup_table() -> &'static [Bitboard; BISHOP_TABLE_SIZE] {
 
     // Compile time checks
-    const _: () = assert!(std::mem::size_of::<Bitboard>() == 8);
-    const _: () = assert!(std::mem::align_of::<Bitboard>() == 8);
+    const _: () = assert!(size_of::<Bitboard>() == 8);
+    const _: () = assert!(align_of::<Bitboard>() == 8);
 
     unsafe { &*(RAW_BISHOP_LUT.0.as_ptr() as *const [Bitboard; BISHOP_TABLE_SIZE])}
 }
@@ -240,13 +240,13 @@ pub fn get_rook_attacks(sq: Square, occupancy: Bitboard) -> Bitboard{
     let offset = m.offset;
 
     // PEXT
-    #[cfg(all(target_arch = "x86_64", target_feature = "bmi2"))]
+    #[cfg(feature = "pext")]
     let table_idx = unsafe { 
         (core::arch::x86_64::_pext_u64(blockers, mask)) as usize + offset
     };
 
     // Plain magics fallback
-    #[cfg(not(all(target_arch = "x86_64", target_feature = "bmi2")))]
+    #[cfg(not(feature = "pext"))]
     let table_idx =  {
         let magic = m.magic;
         let shift = m.shift;
@@ -265,13 +265,13 @@ pub fn get_bishop_attacks(sq: Square, occupancy: Bitboard) -> Bitboard{
     let offset = m.offset;
 
     // PEXT
-    #[cfg(all(target_arch = "x86_64", target_feature = "bmi2"))]
+    #[cfg(feature = "pext")]
     let table_idx = unsafe { 
         (core::arch::x86_64::_pext_u64(blockers, mask)) as usize + offset
     };
 
     // Plain magics fallback
-    #[cfg(not(all(target_arch = "x86_64", target_feature = "bmi2")))]
+    #[cfg(not(feature = "pext"))]
     let table_idx =  {
         let magic = m.magic;
         let shift = m.shift;

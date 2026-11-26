@@ -20,7 +20,7 @@ fn main() {
     let mut rook_table = vec![0_u64; ROOK_TABLE_SIZE];
     let mut bishop_table = vec![0_u64; BISHOP_TABLE_SIZE];
 
-    let use_bmi2 = is_bmi2_enabled();
+    let use_bmi2 = is_pext_enabled();
 
     for sq in 0..64 {
         // 1. Populate Rook attacks
@@ -72,10 +72,18 @@ const fn pext_u64_soft(val: u64, mut mask: u64) -> u64 {
     res
 }
 
-fn is_bmi2_enabled() -> bool {
-    let arch = std::env::var("CARGO_CFG_TARGET_ARCH").unwrap_or_default();
-    let features = std::env::var("CARGO_CFG_TARGET_FEATURE").unwrap_or_default();
-    arch == "x86_64" && features.split(',').any(|f| f == "bmi2")
+fn is_pext_enabled() -> bool {
+    let arch = env::var("CARGO_CFG_TARGET_ARCH").unwrap_or_default();
+    let features = env::var("CARGO_CFG_TARGET_FEATURE").unwrap_or_default();
+    let has_pext = env::var("CARGO_FEATURE_PEXT").is_ok();
+
+    let is_compatible = arch == "x86_64" && features.split(',').any(|f| f == "bmi2");
+
+    if has_pext && !is_compatible {
+        panic!("cargo:error=Pext enabled, but target is not x86_64 with +bmi2.");
+    }
+
+    has_pext && is_compatible
 }
 
 #[inline]

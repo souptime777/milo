@@ -8,3 +8,4 @@ pub mod rank;
 pub mod square;
 pub mod tests;
 pub mod helpers;
+pub mod movelist;
