@@ -57,7 +57,8 @@ impl Board {
             self.piece_on(to), 
             self.castling_rights(), 
             self.en_passant(), 
-            self.halfmove_clock());
+            self.halfmove_clock()
+        );
 
         debug_assert!(self.move_history.len() < MAX_SEARCH_PLIES as usize);
         // SAFETY: Engine should never play beyond `MAX_SEARCH_PLIES`

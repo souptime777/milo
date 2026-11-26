@@ -235,8 +235,12 @@ pub const BISHOP_RELEVANT_OCCUPANCY: [Bitboard; 64] = {
 pub fn get_rook_attacks(sq: Square, occupancy: Bitboard) -> Bitboard{
     let idx = sq as usize;
     let blockers = occupancy.0;
-    let mask = ROOK_RELEVANT_OCCUPANCY[idx].0;
-    let m = &ROOK_MAGICS[idx];
+    let mask = unsafe {
+        *ROOK_RELEVANT_OCCUPANCY.get_unchecked(idx)
+    }.0;
+    let m = unsafe {
+        *ROOK_MAGICS.get_unchecked(idx)
+    };
     let offset = m.offset;
 
     // PEXT
@@ -260,8 +264,12 @@ pub fn get_rook_attacks(sq: Square, occupancy: Bitboard) -> Bitboard{
 pub fn get_bishop_attacks(sq: Square, occupancy: Bitboard) -> Bitboard{
     let idx = sq as usize;
     let blockers = occupancy.0;
-    let mask = BISHOP_RELEVANT_OCCUPANCY[idx].0;
-    let m = &BISHOP_MAGICS[idx];
+    let mask = unsafe {
+        *BISHOP_RELEVANT_OCCUPANCY.get_unchecked(idx)
+    }.0;
+    let m = unsafe {
+        *BISHOP_MAGICS.get_unchecked(idx)
+    };
     let offset = m.offset;
 
     // PEXT
