@@ -1,6 +1,7 @@
 use std::fmt;
 
 use crate::*;
+use crate::uci::{UciMove, UciMoveParseError};
 
 /// A chess move.
 ///
@@ -29,10 +30,7 @@ pub enum MoveFlag {
 
 #[derive(Debug)]
 pub enum MoveParseError {
-    InvalidFromSquare,
-    InvalidToSquare,
-    InvalidPromotionPiece,
-    InvalidUciFormat,
+    InvalidUci(UciMoveParseError),
     IllegalMove,
 }
 
@@ -53,43 +51,16 @@ impl Move {
     pub const fn new(from: Square, to: Square, flag: MoveFlag) -> Self {
         Self((to as u16) | (from as u16) << 6 | (flag as u16) << 12)
     }
+
+    /// Convert a UCI string like 'e2e4' into a move
+    ///
+    /// Requires a reference to the board due to moveflags.
     #[inline(always)]
     pub fn from_uci(s: &str, board: &Board) -> Result<Self, MoveParseError> {
-        if !(4..=5).contains(&s.len()) || !s.is_ascii() {
-            return Err(MoveParseError::InvalidUciFormat);
-        }
-
-        let from: Square = s[0..=1].parse().map_err(|_| MoveParseError::InvalidFromSquare)?;
-        let to: Square = s[2..=3].parse().map_err(|_| MoveParseError::InvalidToSquare)?;
-        let promo  = s.chars()
-            .nth(4)
-            .map(|c| PieceType::try_from(c))
-            .transpose()
-            .map_err(|_| MoveParseError::InvalidPromotionPiece)?;
-
-        let mut legals = MoveList::new();
-        board.generate_moves_into(&mut legals);
-
-        for legal in legals {
-            if legal.from() == from
-                && legal.to() == to {
-                
-                if !legal.is_promotion() && promo.is_some() {
-                    continue
-                }
-                
-                if legal.is_promotion() {
-                    if let Some(promo) = promo
-                    && legal.promotion_piece() == promo {
-                        return Ok(legal);
-                    }
-                    continue;
-                }
-                return Ok(legal);
-            }
-        }
-
-        Err(MoveParseError::IllegalMove)
+        let uci = s.parse::<UciMove>()
+            .map_err(|err| MoveParseError::InvalidUci(err))?;
+        
+        uci.resolve(&board).map_err(|_| MoveParseError::IllegalMove)
     }
     /// Unpack the [Move]'s from square.
     #[inline(always)]

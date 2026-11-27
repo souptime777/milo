@@ -10,7 +10,7 @@ pub use chess::{
     r#move::*,
     rank::*,
     square::*,
-    tests,
+    perft,
 };
 
 pub mod config {

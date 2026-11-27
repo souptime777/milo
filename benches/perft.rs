@@ -1,4 +1,4 @@
-use milo_core::{Board, tests::perft};
+use milo_core::{Board, perft::perft};
 use std::hint::black_box;
 use criterion::{criterion_group, criterion_main, Criterion, BenchmarkId, Throughput};
 

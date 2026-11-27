@@ -314,3 +314,38 @@ impl ZobristState {
         self.hash ^= ZOBRIST.black_to_move
     }
 }
+
+mod tests {
+    use super::*;
+
+    #[test]
+    fn hash_matches_fen() {
+        let moves = [
+            Move::new(Square::E2, Square::E4, MoveFlag::DoublePawn),
+            Move::new(Square::E7, Square::E5, MoveFlag::DoublePawn),
+            Move::new(Square::G1, Square::F3, MoveFlag::Quiet),
+            Move::new(Square::B8, Square::C6, MoveFlag::Quiet),
+            Move::new(Square::F1, Square::C4, MoveFlag::Quiet),
+            Move::new(Square::G8, Square::F6, MoveFlag::Quiet),
+            Move::new(Square::E1, Square::G1, MoveFlag::KingCastle),
+            Move::new(Square::F6, Square::E4, MoveFlag::Capture),
+        ];
+        let fen_after_move = [
+            "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1",
+            "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq e6 0 2",
+            "rnbqkbnr/pppp1ppp/8/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq - 1 2",
+            "r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3",
+            "r1bqkbnr/pppp1ppp/2n5/4p3/2B1P3/5N2/PPPP1PPP/RNBQK2R b KQkq - 3 3",
+            "r1bqkb1r/pppp1ppp/2n2n2/4p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 4 4",
+            "r1bqkb1r/pppp1ppp/2n2n2/4p3/2B1P3/5N2/PPPP1PPP/RNBQ1RK1 b kq - 5 4",
+            "r1bqkb1r/pppp1ppp/2n5/4p3/2B1n3/5N2/PPPP1PPP/RNBQ1RK1 w kq - 0 5",
+        ];
+        let mut m_board = Board::default();
+        for (mv, fen) in moves.into_iter().zip(fen_after_move.into_iter()) {
+            m_board.make_move(mv);
+            let f_board = Board::from_fen(fen).unwrap();
+
+            assert_eq!(m_board.hash(), f_board.hash());
+        }
+    }
+}

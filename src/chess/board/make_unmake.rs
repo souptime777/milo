@@ -1,5 +1,6 @@
 use crate::*;
 use config::MAX_SEARCH_PLIES;
+use crate::perft::perft;
 
 impl Board {
     pub fn make_move(&mut self, mv: Move) {
@@ -58,17 +59,20 @@ impl Board {
                 if flag == MoveFlag::DoublePawn {
                     new_en_passant = Some(to.file());
                 }
-            } else if flag == MoveFlag::KingCastle {
-                let rook = Piece::new(PieceType::Rook, color);
+            } else {
+                self.halfmove_clock += 1;
+                if flag == MoveFlag::KingCastle {
+                    let rook = Piece::new(PieceType::Rook, color);
 
-                self.inner.xor_square(rook, Square::H1.from_perspective(color));
-                self.inner.xor_square(rook, Square::F1.from_perspective(color));
+                    self.inner.xor_square(rook, Square::H1.from_perspective(color));
+                    self.inner.xor_square(rook, Square::F1.from_perspective(color));
 
-            } else if flag == MoveFlag::QueenCastle {
-                let rook = Piece::new(PieceType::Rook, color);
+                } else if flag == MoveFlag::QueenCastle {
+                    let rook = Piece::new(PieceType::Rook, color);
 
-                self.inner.xor_square(rook, Square::A1.from_perspective(color));
-                self.inner.xor_square(rook, Square::D1.from_perspective(color));
+                    self.inner.xor_square(rook, Square::A1.from_perspective(color));
+                    self.inner.xor_square(rook, Square::D1.from_perspective(color));
+                }
             }
         }
 
@@ -145,5 +149,23 @@ impl Board {
 
         
         (self.pinned, self.checkers) = self.pin_check_history.pop().unwrap();
+    }
+}
+
+mod tests {
+    use super::*;
+    #[test]
+    fn perft_test() {
+        let expected: [u64; 5] = [
+            20,
+            400,
+            8_902,
+            197_281,
+            4_865_609,
+        ];
+        for (depth, expected) in expected.into_iter().enumerate() {
+            let mut board = Board::default();
+            assert_eq!(perft(&mut board, (depth + 1) as u8), expected);
+        }
     }
 }
