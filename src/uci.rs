@@ -1,3 +1,4 @@
+use std::fmt::{Display, Formatter};
 use std::str::FromStr;
 use std::time::Duration;
 use arrayvec::ArrayVec;
@@ -342,3 +343,276 @@ impl FromStr for UciCommand {
         }
     }
 }
+
+pub struct UciBestMove {
+    pub best_move: Move,
+    pub ponder: Option<Move>,
+}
+impl Display for UciBestMove {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        if let Some(ponder) = &self.ponder {
+            write!(f, "bestmove {} ponder {}", self.best_move, ponder)?;
+        } else {
+            write!(f, "bestmove {}", self.best_move)?;
+        }
+        Ok(())
+    }
+}
+impl UciBestMove {
+    pub fn new(best_move: Move) -> Self {
+        Self {
+            best_move,
+            ponder: None,
+        }
+    }
+    pub fn ponder(mut self, ponder: Move) -> Self {
+        self.ponder = Some(ponder);
+        self
+    }
+}
+
+pub enum UciScore {
+    Centipawns(i32),
+    Mate(u8),
+}
+
+pub struct UciInfo {
+    pub depth: Option<u8>,
+    pub seldepth: Option<u8>,
+    pub time: Option<Duration>,
+    pub nodes: Option<u64>,
+    pub pv: Option<Vec<Move>>,
+    pub score: Option<UciScore>,
+    pub currmove: Option<Move>,
+    pub hashfull: Option<u16>,
+    pub nps: Option<u64>,
+    pub tbhits: Option<u64>,
+    pub sbhits: Option<u64>,
+    pub string: Option<String>,
+}
+
+impl Display for UciInfo {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "info ")?;
+        if let Some(depth) = self.depth {
+            write!(f, "depth {} ", depth)?;
+        }
+        if let Some(seldepth) = self.seldepth {
+            write!(f, "seldepth {} ", seldepth)?;
+        }
+        if let Some(time) = self.time {
+            write!(f, "time {} ", time.as_millis())?;
+        }
+        if let Some(nodes) = self.nodes {
+            write!(f, "nodes {} ", nodes)?;
+        }
+        if let Some(pv) = &self.pv {
+            write!(f, "pv ")?;
+            for mv in pv {
+                write!(f, "{} ", mv)?;
+            }
+        }
+        if let Some(score) = &self.score {
+            write!(f, "score ")?;
+            match score {
+                UciScore::Centipawns(c) => {
+                    write!(f, "cp {} ", c)?;
+                }
+                UciScore::Mate(m) => {
+                    write!(f, "mate {} ", m)?;
+                }
+            }
+        }
+        if let Some(currmove) = &self.currmove {
+            write!(f, "currmove {} ", currmove)?;
+        }
+        if let Some(hashfull) = self.hashfull {
+            write!(f, "hashfull {} ", hashfull)?;
+        }
+        if let Some(nps) = self.nps {
+            write!(f, "nps {} ", nps)?;
+        }
+        if let Some(tbhits) = self.tbhits {
+            write!(f, "tbhits {} ", tbhits)?;
+        }
+        if let Some(sbhits) = self.sbhits {
+            write!(f, "sbhits {} ", sbhits)?;
+        }
+        if let Some(string) = &self.string {
+            write!(f, "string {} ", string)?;
+        }
+        Ok(())
+    }
+}
+
+impl UciInfo {
+    pub fn new() -> Self {
+        Self {
+            depth: None,
+            seldepth: None,
+            time: None,
+            nodes: None,
+            pv: None,
+            score: None,
+            currmove: None,
+            hashfull: None,
+            nps: None,
+            tbhits: None,
+            sbhits: None,
+            string: None,
+        }
+    }
+    pub fn depth(mut self, depth: u8) -> Self {
+        self.depth = Some(depth);
+        self
+    }
+    pub fn seldepth(mut self, seldepth: u8) -> Self {
+        self.seldepth = Some(seldepth);
+        self
+    }
+    pub fn time(mut self, time: Duration) -> Self {
+        self.time = Some(time);
+        self
+    }
+    pub fn nodes(mut self, nodes: u64) -> Self {
+        self.nodes = Some(nodes);
+        self
+    }
+    pub fn pv(mut self, pv: impl IntoIterator<Item = Move>) -> Self {
+        self.pv = Some(pv.into_iter().collect());
+        self
+    }
+    pub fn score(mut self, score: UciScore) -> Self {
+        self.score = Some(score);
+        self
+    }
+    pub fn currmove(mut self, currmove: Move) -> Self {
+        self.currmove = Some(currmove);
+        self
+    }
+    pub fn hashfull(mut self, hashfull: u16) -> Self {
+        self.hashfull = Some(hashfull);
+        self
+    }
+    pub fn nps(mut self, nps: u64) -> Self {
+        self.nps = Some(nps);
+        self
+    }
+    pub fn tbhits(mut self, tbhits: u64) -> Self {
+        self.tbhits = Some(tbhits);
+        self
+    }
+    pub fn sbhits(mut self, sbhits: u64) -> Self {
+        self.sbhits = Some(sbhits);
+        self
+    }
+    pub fn string(mut self, string: String) -> Self {
+        self.string = Some(string);
+        self
+    }
+}
+
+pub enum UciOptionType {
+    Check {
+        default: bool,
+    },
+    Spin {
+        default: i32,
+        min: i32,
+        max: i32,
+    },
+    Combo {
+        default: String,
+        var: Vec<String>,
+    },
+    Button,
+    String {
+        default: String,
+    },
+}
+
+pub struct UciOption {
+    pub name: String,
+    pub option_type: UciOptionType,
+}
+
+impl Display for UciOption {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "option name {} ", self.name)?;
+        match &self.option_type {
+            UciOptionType::Check { default } => {
+                write!(f, "type check ")?;
+                write!(f, "default {} ", default)?;
+            }
+            UciOptionType::Spin { default, min, max } => {
+                write!(f, "type spin ")?;
+                write!(f, "default {} ", default)?;
+                write!(f, "min {} max {} ", min, max)?;
+
+            }
+            UciOptionType::Combo { default, var } => {
+                write!(f, "type combo ")?;
+                write!(f, "default {} ", default)?;
+                for var in var {
+                    write!(f, "var {} ", var)?;
+                }
+            }
+            UciOptionType::Button => {
+                write!(f, "type button ")?;
+            }
+            UciOptionType::String { default } => {
+                write!(f, "type string ")?;
+                write!(f, "default {} ", default)?;
+            }
+        }
+        Ok(())
+    }
+}
+impl UciOption {
+    pub fn new(name: &str, option_type: UciOptionType) -> Self {
+        Self {
+            name: name.to_string(),
+            option_type,
+        }
+    }
+}
+
+pub enum UciResponse {
+    Id {
+        name: String,
+        author: String,
+    },
+    UciOk,
+    ReadyOk,
+    Option(UciOption),
+    BestMove(UciBestMove),
+    Info(UciInfo),
+}
+
+impl Display for UciResponse {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            UciResponse::Id { name, author } => {
+                writeln!(f, "id name {}", name)?;
+                write!(f, "id author {}", author)?;
+            }
+            UciResponse::UciOk => {
+                write!(f, "uciok")?;
+            }
+            UciResponse::ReadyOk => {
+                write!(f, "readyok")?;
+            }
+            UciResponse::Option(option) => {
+                write!(f, "{}", option)?;
+            }
+            UciResponse::BestMove(bestmove) => {
+                write!(f, "{}", bestmove)?;
+            }
+            UciResponse::Info(info) => {
+                write!(f, "{}", info)?;
+            }
+        }
+        Ok(())
+    }
+}
+

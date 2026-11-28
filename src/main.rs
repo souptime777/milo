@@ -1,5 +1,9 @@
-use milo_core::perft::nps_test;
 
+use milo_core::uci::{UciOption, UciOptionType};
 fn main() {
-    println!("{:.0}", nps_test(6))
+    let option = UciOption::new(
+        "Nullmove",
+        UciOptionType::Check {default: true},
+    );
+    println!("{}", option);
 }

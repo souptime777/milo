@@ -94,6 +94,12 @@ impl Board {
         self.update_checkers_and_pinned();
         // Increment fullmove clock if black (branchless)
         self.fullmove_clock += (color == Color::Black) as u16;
+        debug_assert_eq!(
+            self.hash(),
+            self.compute_full_hash(),
+            "Hash mismatch AFTER make_move({})",
+            mv
+        );
     }
 
     /// Undo the previous move.
@@ -149,6 +155,13 @@ impl Board {
 
         
         (self.pinned, self.checkers) = self.pin_check_history.pop().unwrap();
+        
+        debug_assert_eq!(
+            self.hash(),
+            self.compute_full_hash(),
+            "Hash mismatch AFTER unmake_move({:?})",
+            p_mv
+        );
     }
 }
 

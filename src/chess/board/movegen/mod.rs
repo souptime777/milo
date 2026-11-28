@@ -41,7 +41,7 @@ impl Board {
         attackers |= get_king_attacks(sq) & self.piece_bitboard(Piece::new(PieceType::King, enemy_color));
         attackers
     }
-
+    #[inline(always)]
     fn target_squares<const IN_CHECK: bool, const GEN_TYPE: u8>(&self) -> Bitboard {
         let color = self.side_to_move();
 
@@ -231,6 +231,7 @@ impl Board {
         }
     }
 
+    #[inline(always)]
     fn add_knight_moves<
         const IN_CHECK: bool, const GEN_TYPE: u8
     >(&self, move_list: &mut MoveList) {
@@ -259,7 +260,7 @@ impl Board {
             }
         }
     }
-
+    #[inline]
     fn add_bishop_moves<
         const IN_CHECK: bool, const GEN_TYPE: u8
     >(&self, move_list: &mut MoveList) {
@@ -310,7 +311,7 @@ impl Board {
             }
         }
     }
-
+    #[inline]
     fn add_rook_moves<
         const IN_CHECK: bool, const GEN_TYPE: u8
     >(&self, move_list: &mut MoveList) {
@@ -361,7 +362,7 @@ impl Board {
             }
         }
     }
-
+    #[inline]
     fn add_queen_moves<
         const IN_CHECK: bool, const GEN_TYPE: u8
     >(&self, move_list: &mut MoveList) {
@@ -446,7 +447,7 @@ impl Board {
 
         true
     }
-
+    #[inline(always)]
     fn can_castle(&self, rook: File, king_dest: File) -> bool {
         let color = self.side_to_move();
         let backrank = Rank::First.from_perspective(color);
@@ -463,7 +464,7 @@ impl Board {
         (blockers & must_be_empty).is_empty()
         && (must_be_safe.into_iter().all(|square| self.is_king_safe(square)))
     }
-
+    #[inline]
     fn add_king_moves<
         const IN_CHECK: bool, const GEN_TYPE: u8
     >(&self, move_list: &mut MoveList) {
@@ -524,6 +525,7 @@ impl Board {
             }
         }
     }
+
     fn add_all_moves<
         const IN_CHECK: bool, const GEN_TYPE: u8
     >(&self, move_list: &mut MoveList) {
@@ -536,6 +538,7 @@ impl Board {
     }
 
     /// Generate legal moves with a [GenType] into a Movelist
+    #[inline(always)]
     pub fn generate_moves_with_type_into<
         const GEN_TYPE: u8
     >(&self, move_list: &mut MoveList) {      
@@ -549,16 +552,19 @@ impl Board {
     }
 
     /// Generate all legal moves
+    #[inline(always)]
     pub fn generate_moves_into(&self, move_list: &mut MoveList) {
         self.generate_moves_with_type_into::<{ GenType::All as u8 }>(move_list);
     }
 
     /// Generate all legal capture moves
+    #[inline(always)]
     pub fn generate_captures_into(&self, move_list: &mut MoveList) {
         self.generate_moves_with_type_into::<{ GenType::Captures as u8 }>(move_list);
     }
 
     /// Generate all legal quiet moves
+    #[inline(always)]
     pub fn generate_quiets_into(&self, move_list: &mut MoveList) {
         self.generate_moves_with_type_into::<{ GenType::Quiets as u8 }>(move_list);
     }

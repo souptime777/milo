@@ -134,6 +134,11 @@ impl Board {
         self.inner.hash()
     }
 
+    #[inline(always)]
+    pub fn compute_full_hash(&self) -> u64 {
+        self.inner.compute_full_hash()
+    }
+
     /// Check whether a board is exactly equal 
     /// 
     /// Slower that comparing hash, but guarantees no collisions.

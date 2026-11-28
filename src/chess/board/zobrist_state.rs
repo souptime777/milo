@@ -193,7 +193,7 @@ impl ZobristState {
                 false
             ),
             en_passant: None,
-            hash: 0
+            hash: ZOBRIST.castle_rights[0],
         }
     }
 
@@ -217,8 +217,8 @@ impl ZobristState {
 
     /// Get the mailbox.
     #[inline(always)]
-    pub const fn mailbox(&self) -> [Option<Piece>; 64] {
-        self.mailbox
+    pub const fn mailbox(&self) -> &[Option<Piece>; 64] {
+        &self.mailbox
     }
 
     /// Get the [Bitboard] of all pieces.
@@ -256,6 +256,7 @@ impl ZobristState {
     }
 
     /// Run the XOR operation on relevant bb, updating hash and mailbox.
+    /// #[inline(always)]
     pub fn xor_square(&mut self, piece: Piece, square: Square) {
         // debug check, no release overhead.
         debug_assert!(
@@ -279,6 +280,7 @@ impl ZobristState {
     }
 
     /// Update the castling right, updating hash.
+    #[inline(always)]
     pub fn update_castling_rights(&mut self, from: Square, to: Square) {
         let prev = self.castling_rights.0;
         self.castling_rights.update(from, to);
@@ -288,6 +290,7 @@ impl ZobristState {
     }
 
     /// Set the castling right
+    #[inline(always)]
     pub fn set_castling_rights(&mut self, rights: CastlingRights) {
         let prev = self.castling_rights.0;
         self.castling_rights = rights;
@@ -298,6 +301,7 @@ impl ZobristState {
     }
 
     /// Set en passant value.
+    #[inline(always)]
     pub fn set_en_passant(&mut self, new_en_passant: Option<File>) {
         if let Some(file) = core::mem::replace(&mut self.en_passant, new_en_passant) {
             self.hash ^= ZOBRIST.en_passant[file as usize];
@@ -312,6 +316,28 @@ impl ZobristState {
     pub fn toggle_side_to_move(&mut self) {
         self.side_to_move = !self.side_to_move;
         self.hash ^= ZOBRIST.black_to_move
+    }
+
+    #[inline(always)]
+    pub fn compute_full_hash(&self) -> u64 {
+        let mut hash = 0;
+
+        for sq in self.occupancy {
+            let piece = self.mailbox[sq as usize].expect("sq in occupancy but not in mailbox");
+            hash ^= ZOBRIST.pieces[piece as usize][sq as usize];
+        }
+
+        if let Some(en_passant) = self.en_passant {
+            hash ^= ZOBRIST.en_passant[en_passant as usize];
+        }
+
+        hash ^= ZOBRIST.castle_rights[self.castling_rights.0 as usize];
+
+        if self.side_to_move == Color::Black {
+            hash ^= ZOBRIST.black_to_move;
+        }
+
+        hash
     }
 }
 #[cfg(test)]
