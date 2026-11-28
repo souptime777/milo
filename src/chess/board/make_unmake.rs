@@ -1,6 +1,6 @@
 use crate::*;
 use config::MAX_SEARCH_PLIES;
-use crate::perft::perft;
+
 
 impl Board {
     pub fn make_move(&mut self, mv: Move) {
@@ -14,10 +14,10 @@ impl Board {
         let captured = self.piece_on(to);
 
         let past_move = PastMove::new(
-            &mv, 
+            &mv,
             captured,
-            self.castling_rights(), 
-            self.en_passant(), 
+            self.castling_rights(),
+            self.en_passant(),
             self.halfmove_clock()
         );
 
@@ -152,8 +152,9 @@ impl Board {
     }
 }
 
+#[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::{*, perft::perft};
     #[test]
     fn perft_test() {
         let expected: [u64; 5] = [

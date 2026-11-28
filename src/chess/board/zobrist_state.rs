@@ -314,7 +314,7 @@ impl ZobristState {
         self.hash ^= ZOBRIST.black_to_move
     }
 }
-
+#[cfg(test)]
 mod tests {
     use super::*;
 

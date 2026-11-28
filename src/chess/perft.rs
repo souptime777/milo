@@ -1,5 +1,12 @@
+use std::time::Instant;
 use crate::*;
-
+pub fn nps_test(depth: u8) -> f64 {
+    let mut board = Board::default();
+    let start = Instant::now();
+    let nodes = full_perft(&mut board, depth);
+    let elapsed = start.elapsed().as_secs_f64();
+    nodes as f64 / elapsed
+}
 pub fn perft(board: &mut Board, depth: u8) -> u64 {
     let mut nodes = 0;
     let mut moves = MoveList::new();
